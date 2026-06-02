@@ -256,46 +256,39 @@ const POSTURE_ROUTINES = {
 
 const POSTURE_GUIDES = {
   seated: {
-    src: "https://images.pexels.com/photos/7113446/pexels-photo-7113446.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona practicando yoga sentada en una silla.",
-    movement: "Apoyá pies y pelvis, relajá hombros y alargá la columna.",
-    voice: "Sentate cerca del respaldo o del borde, con ambos pies apoyados. Alargá la columna y dejá que los hombros bajen.",
+    movement: "Apoyá pies y pelvis, suavizá hombros y alargá la columna.",
+    voice:
+      "Sentate en la silla con los dos pies apoyados en el piso. Apoyá las manos sobre los muslos. Inhalando, alargá la columna como si crecieras desde la coronilla. Exhalando, relajá hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
   },
   "arms-up": {
-    src: "https://images.pexels.com/photos/7113446/pexels-photo-7113446.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona en una silla elevando los brazos para estirar el torso.",
     movement: "Subí brazos al inhalar, bajalos al exhalar y mantené pies firmes.",
-    voice: "Inhalá y elevá los brazos desde los costados. Exhalá y bajalos lento. Repetí sin tensar cuello ni mandíbula.",
+    voice:
+      "Sentada en la silla, relajá los hombros y dejá los pies firmes. Inhalando, subí los dos brazos por los costados hasta donde sea cómodo. Exhalando, bajalos despacio. Volvé a inhalar y elevá los brazos, exhalá y soltá. Mantené cuello y mandíbula blandos.",
   },
   twist: {
-    src: "https://images.pexels.com/photos/17999509/pexels-photo-17999509.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona usando una silla como apoyo para una torsión o estiramiento.",
     movement: "Girá desde el abdomen con apoyo en el asiento o respaldo.",
-    voice: "Apoyá una mano en la silla y girá desde el abdomen. Mantené la espalda larga. Volvé al centro y cambiá de lado.",
+    voice:
+      "Sentada con la espalda larga, apoyá la mano derecha en el respaldo o en el borde de la silla. Inhalando, crecé desde la columna. Exhalando, girá suavemente hacia la derecha desde el abdomen. Inhalando, volvé al centro. Exhalando, cambiá hacia la izquierda con la misma suavidad.",
   },
   "forward-fold": {
-    src: "https://images.pexels.com/photos/6697186/pexels-photo-6697186.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona usando una silla para una flexión hacia adelante.",
     movement: "Cerrá el torso hacia las piernas y dejá caer el peso de la cabeza.",
-    voice: "Desde la silla, dejá que el torso baje hacia las piernas. Soltá cabeza, cuello y espalda, sin empujar.",
+    voice:
+      "Desde la silla, separá un poco los pies y apoyá bien las plantas. Inhalando, alargá la espalda. Exhalando, dejá que el torso baje hacia las piernas, sin forzar. Soltá cabeza, cuello y hombros. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso.",
   },
   "side-stretch": {
-    src: "https://images.pexels.com/photos/7113446/pexels-photo-7113446.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona en silla haciendo un estiramiento lateral de torso.",
     movement: "Alargá un costado, respiralo y cambiá hacia el otro lado.",
-    voice: "Llevá un brazo arriba e inclinate apenas hacia un lado. Respirá en las costillas, volvé y cambiá.",
+    voice:
+      "Sentada en la silla, relajá hombros y apoyá los pies. Inhalando, levantá el brazo derecho. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Inhalando, volvé al centro. Exhalando, bajá el brazo. Inhalando, subí el brazo izquierdo. Exhalando, inclinate hacia la derecha. Volvé despacio.",
   },
   "heart-opener": {
-    src: "https://images.pexels.com/photos/17999509/pexels-photo-17999509.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona estirando el pecho con apoyo de una silla.",
     movement: "Abrí clavículas, llevá hombros atrás y mantené abdomen suave.",
-    voice: "Tomá el respaldo o los bordes de la silla. Abrí el pecho con suavidad, como una extensión hacia atrás.",
+    voice:
+      "Sentada, tomá el respaldo o los bordes de la silla con suavidad. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Exhalando, aflojá las costillas y el abdomen. No empujes la cintura: dejá que la apertura nazca del pecho y de las clavículas.",
   },
   shoulders: {
-    src: "https://images.pexels.com/photos/13424520/pexels-photo-13424520.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    alt: "Persona practicando estiramientos con sillas como apoyo.",
     movement: "Hacé círculos con hombros: suben, van atrás y bajan.",
-    voice: "Mové hombros en círculos. Suben, van hacia atrás y bajan. Dejá cuello y manos livianos.",
+    voice:
+      "Sentada en la silla, dejá los brazos relajados. Inhalando, llevá los hombros hacia arriba. Exhalando, mandalos hacia atrás y hacia abajo. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara livianos.",
   },
 };
 
@@ -1397,43 +1390,17 @@ function postureGuideFor(pose) {
 }
 
 function postureVisual(pose) {
-  const guide = postureGuideFor(pose);
   return `
-    <div class="posture-image-card">
-      <img
-        class="posture-image"
-        data-posture-image
-        src="${guide.src}"
-        alt="${guide.alt}"
-        loading="eager"
-      />
-      <div class="posture-image-fallback" data-posture-fallback hidden>
-        ${postureFigure(pose.id)}
-      </div>
+    <div class="posture-visual-card">
+      ${postureFigure(pose.id)}
     </div>
   `;
 }
 
 function updatePostureVisual(pose) {
-  const guide = postureGuideFor(pose);
-  const image = document.querySelector("[data-posture-image]");
-  const fallback = document.querySelector("[data-posture-fallback]");
   const figure = document.querySelector("[data-posture-figure]");
 
   if (figure) figure.dataset.pose = pose.id;
-  if (!image) return;
-
-  image.onload = () => {
-    image.hidden = false;
-    if (fallback) fallback.hidden = true;
-  };
-  image.onerror = () => {
-    image.hidden = true;
-    if (fallback) fallback.hidden = false;
-  };
-
-  if (image.src !== guide.src) image.src = guide.src;
-  image.alt = guide.alt;
 }
 
 function postureFigure(pose) {
