@@ -9,6 +9,7 @@ const RAIN_VOLUME = 0.08;
 const VOICE_RATE = 0.74;
 const VOICE_PITCH = 1.08;
 const VOICE_VOLUME = 0.38;
+const POSTURE_DURATION_SECONDS = 5 * 60;
 
 const MOODS = [
   {
@@ -316,12 +317,19 @@ const state = {
   mood: null,
   routine: null,
   sessionId: null,
+  sessionOptions: new Map(),
   session: {
     running: false,
     paused: false,
     intervalId: null,
     phaseTimeoutId: null,
     remainingSeconds: 0,
+    durationMs: 0,
+    startedAt: 0,
+    pausedAt: null,
+    pausedTotalMs: 0,
+    phaseStartedAt: 0,
+    phaseRemainingMs: 0,
     currentPhaseIndex: 0,
     currentPhaseLabel: "",
     endingWarned: false,
@@ -351,6 +359,7 @@ const state = {
 };
 
 const app = document.querySelector("#app");
+const appStatus = document.querySelector("#app-status");
 
 document.addEventListener("DOMContentLoaded", async () => {
   state.db = await openDatabase();
@@ -362,6 +371,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.user = await getOrCreateUser();
   }
   window.addEventListener("hashchange", renderRoute);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   renderRoute();
 });
 
@@ -554,7 +564,7 @@ async function handleAliasLogin(event) {
   const pin = form.pin.value.trim();
   const message = form.querySelector("[data-auth-message]");
 
-  if (!alias || pin.length < 4) {
+  if (!alias || !isValidPin(pin)) {
     message.textContent = "Usá un alias y un PIN de al menos 4 números.";
     return;
   }
@@ -602,6 +612,10 @@ function normalizeAlias(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9_]/g, "");
+}
+
+function isValidPin(value) {
+  return /^\d{4,}$/.test(value);
 }
 
 function isUuid(value) {
@@ -666,21 +680,44 @@ function getRoute() {
   return window.location.hash.replace("#", "") || "welcome";
 }
 
+function focusPrimaryHeading() {
+  const target = app.querySelector("h1, h2, [data-instruction]");
+  if (!target) return;
+  target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+  announce(target.textContent.trim());
+}
+
+function announce(message) {
+  if (!appStatus || !message) return;
+  appStatus.textContent = "";
+  window.setTimeout(() => {
+    appStatus.textContent = message;
+  }, 10);
+}
+
+function handleVisibilityChange() {
+  if (!document.hidden && state.session.running && !state.session.paused && state.sessionId) {
+    updateSessionProgress(state.sessionId);
+  }
+}
+
 async function renderRoute() {
   const route = getRoute();
   const keepRoutineAudio = route.startsWith("postures/");
   stopSessionTimers({ keepAudio: keepRoutineAudio });
   stopPostureTimers();
 
-  if (route === "auth") return renderAuthPage();
-  if (isSupabaseEnabled() && !state.user && route !== "welcome") return renderAuthPage();
-  if (route === "moods") return renderMoodPage();
-  if (route.startsWith("routine/")) return renderRoutinePage(route.split("/")[1]);
-  if (route.startsWith("session/")) return renderSessionPage(route.split("/")[1]);
-  if (route.startsWith("postures/")) return renderPosturePage(route.split("/")[1]);
-  if (route.startsWith("feedback/")) return renderFeedbackPage(route.split("/")[1]);
+  if (route === "auth") await renderAuthPage();
+  else if (isSupabaseEnabled() && !state.user && route !== "welcome") await renderAuthPage();
+  else if (route === "moods") await renderMoodPage();
+  else if (route.startsWith("routine/")) await renderRoutinePage(route.split("/")[1]);
+  else if (route.startsWith("session/")) await renderSessionPage(route.split("/")[1]);
+  else if (route.startsWith("postures/")) await renderPosturePage(route.split("/")[1]);
+  else if (route.startsWith("feedback/")) await renderFeedbackPage(route.split("/")[1]);
+  else renderWelcomePage();
 
-  renderWelcomePage();
+  focusPrimaryHeading();
 }
 
 function renderWelcomePage() {
@@ -709,16 +746,16 @@ function renderAuthPage() {
       <p class="eyebrow">Tu espacio</p>
       <h2>Entrá con tu alias</h2>
       <p class="lead">Usá el mismo alias y PIN para recuperar tus sesiones en cualquier dispositivo.</p>
-      <form class="auth-form" data-auth-form>
+      <form class="auth-form" data-auth-form novalidate>
         <label>
           <span>Alias</span>
           <input name="alias" type="text" autocomplete="username" placeholder="sofibone" required />
         </label>
         <label>
           <span>PIN</span>
-          <input name="pin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" placeholder="••••" required />
+          <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,}" autocomplete="current-password" minlength="4" placeholder="••••" required />
         </label>
-        <p class="auth-message" data-auth-message></p>
+        <p class="auth-message" data-auth-message role="alert" aria-atomic="true"></p>
         <div class="actions">
           <button class="button" type="submit">Entrar</button>
         </div>
@@ -778,8 +815,12 @@ async function renderRoutinePage(routineId) {
         </div>
         <dl class="detail-list">
           <div class="detail">
-            <dt>Duración</dt>
-            <dd>${routine.duration_minutes} minutos</dd>
+            <dt>Respiración</dt>
+            <dd>${formatDurationLabel(breathingDurationSeconds(routine))}</dd>
+          </div>
+          <div class="detail">
+            <dt>Posturas opcionales</dt>
+            <dd>${formatDurationLabel(POSTURE_DURATION_SECONDS)}</dd>
           </div>
           <div class="detail">
             <dt>Patrón</dt>
@@ -797,6 +838,7 @@ async function renderRoutinePage(routineId) {
       </div>
       <div class="actions">
         <button class="button" type="button" data-start-session="${routine.id}">Iniciar rutina</button>
+        <button class="button button-secondary" type="button" data-start-breathing-only="${routine.id}">Solo respiración</button>
         <button class="button button-secondary" type="button" data-route="moods">Cambiar estado</button>
       </div>
     </section>
@@ -804,6 +846,14 @@ async function renderRoutinePage(routineId) {
 
   bindRoutes();
   document.querySelector("[data-start-session]").addEventListener("click", async () => {
+    await startRoutineSession(routine, { skipPostures: false });
+  });
+  document.querySelector("[data-start-breathing-only]").addEventListener("click", async () => {
+    await startRoutineSession(routine, { skipPostures: true });
+  });
+}
+
+async function startRoutineSession(routine, options = {}) {
     await unlockAudio();
     const sessionId = await addRecord("Session", {
       user: state.user.id,
@@ -812,10 +862,11 @@ async function renderRoutinePage(routineId) {
       mood_after: "",
       date: new Date().toISOString(),
       completed: false,
+      skip_postures: Boolean(options.skipPostures),
     });
+    state.sessionOptions.set(sessionId, { skipPostures: Boolean(options.skipPostures) });
     state.sessionId = sessionId;
     navigate(`session/${sessionId}`);
-  });
 }
 
 async function renderSessionPage(sessionId) {
@@ -833,7 +884,7 @@ async function renderSessionPage(sessionId) {
     <section class="session-screen">
       <div class="topbar">
         <div class="brand"><span class="brand-mark"></span><span>${routine.name}</span></div>
-        <div class="timer" data-timer>${formatTime(routine.duration_minutes * 60)}</div>
+        <div class="timer" data-timer>${formatTime(breathingDurationSeconds(routine))}</div>
       </div>
       <div class="session-space">
         <div class="breath-wrap">
@@ -926,7 +977,7 @@ async function renderPosturePage(sessionId) {
     <section class="session-screen posture-screen">
       <div class="topbar">
         <div class="brand"><span class="brand-mark"></span><span>${postureRoutine.name}</span></div>
-        <div class="timer" data-posture-timer>${formatTime(5 * 60)}</div>
+        <div class="timer" data-posture-timer>${formatTime(POSTURE_DURATION_SECONDS)}</div>
       </div>
       <div class="posture-space">
         <div class="posture-figure-wrap">
@@ -1060,13 +1111,20 @@ function renderInsights(insights) {
 
 function startBreathingSession(routine, sessionId) {
   stopSessionTimers();
+  const durationSeconds = breathingDurationSeconds(routine);
 
   state.session = {
     running: true,
     paused: false,
     intervalId: null,
     phaseTimeoutId: null,
-    remainingSeconds: routine.duration_minutes * 60,
+    remainingSeconds: durationSeconds,
+    durationMs: durationSeconds * 1000,
+    startedAt: performance.now(),
+    pausedAt: null,
+    pausedTotalMs: 0,
+    phaseStartedAt: 0,
+    phaseRemainingMs: 0,
     currentPhaseIndex: 0,
     currentPhaseLabel: "",
     endingWarned: false,
@@ -1078,19 +1136,8 @@ function startBreathingSession(routine, sessionId) {
   runPhase();
 
   state.session.intervalId = window.setInterval(() => {
-    if (state.session.paused) return;
-
-    state.session.remainingSeconds -= 1;
-    renderTimer();
-
-    if (state.session.remainingSeconds <= 15 && !state.session.endingWarned) {
-      prepareSessionEnding();
-    }
-
-    if (state.session.remainingSeconds <= 0) {
-      finishSession(sessionId, true, { fromTimer: true });
-    }
-  }, 1000);
+    updateSessionProgress(sessionId);
+  }, 250);
 }
 
 function buildPhases(routine) {
@@ -1102,17 +1149,55 @@ function buildPhases(routine) {
   ].filter((phase) => phase.seconds > 0);
 }
 
-function runPhase() {
+function breathingDurationSeconds(routine) {
+  const requestedSeconds = routine.duration_minutes * 60;
+  const cycleSeconds = buildPhases(routine).reduce((sum, phase) => sum + phase.seconds, 0);
+  if (!cycleSeconds) return requestedSeconds;
+  return Math.ceil(requestedSeconds / cycleSeconds) * cycleSeconds;
+}
+
+function formatDurationLabel(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (!rest) return `${minutes} minutos`;
+  return `${minutes} min ${String(rest).padStart(2, "0")} s`;
+}
+
+function sessionRemainingSeconds(now = performance.now()) {
+  if (!state.session.running) return 0;
+  const pausedMs = state.session.pausedAt ? now - state.session.pausedAt : 0;
+  const elapsedMs = now - state.session.startedAt - state.session.pausedTotalMs - pausedMs;
+  return Math.max(0, Math.ceil((state.session.durationMs - elapsedMs) / 1000));
+}
+
+function updateSessionProgress(sessionId) {
+  if (!state.session.running || state.session.finishing) return;
+  state.session.remainingSeconds = sessionRemainingSeconds();
+  renderTimer();
+
+  if (state.session.remainingSeconds <= 15 && !state.session.endingWarned) {
+    prepareSessionEnding();
+  }
+
+  if (state.session.remainingSeconds <= 0) {
+    finishSession(sessionId, true, { fromTimer: true });
+  }
+}
+
+function runPhase(durationOverrideMs) {
   const circle = document.querySelector("[data-circle]");
   const instruction = document.querySelector("[data-instruction]");
   if (!circle || !instruction || !state.routine || state.session.paused) return;
 
   const phases = buildPhases(state.routine);
   const phase = phases[state.session.currentPhaseIndex % phases.length];
+  const phaseDurationMs = Math.max(0, durationOverrideMs ?? phase.seconds * 1000);
 
   if (!state.session.endingWarned) instruction.textContent = phase.label;
   state.session.currentPhaseLabel = phase.label;
-  circle.style.setProperty("--phase-ms", `${phase.seconds * 1000}ms`);
+  state.session.phaseStartedAt = performance.now();
+  state.session.phaseRemainingMs = phaseDurationMs;
+  circle.style.setProperty("--phase-ms", `${phaseDurationMs}ms`);
   circle.style.setProperty("--breath-scale", String(phase.scale));
   circle.style.transitionTimingFunction = phase.easing;
   if (!state.session.endingWarned) speakInstruction(phase.label);
@@ -1120,7 +1205,7 @@ function runPhase() {
   state.session.phaseTimeoutId = window.setTimeout(() => {
     state.session.currentPhaseIndex += 1;
     runPhase();
-  }, phase.seconds * 1000);
+  }, phaseDurationMs);
 }
 
 function togglePause() {
@@ -1131,6 +1216,11 @@ function togglePause() {
   button.textContent = state.session.paused ? "Continuar" : "Pausar";
 
   if (state.session.paused) {
+    state.session.pausedAt = performance.now();
+    state.session.phaseRemainingMs = Math.max(
+      0,
+      state.session.phaseRemainingMs - (state.session.pausedAt - state.session.phaseStartedAt),
+    );
     window.clearTimeout(state.session.phaseTimeoutId);
     if (circle) circle.style.transitionDuration = "0ms";
     pauseRoutineAudio(true);
@@ -1138,9 +1228,11 @@ function togglePause() {
     return;
   }
 
+  state.session.pausedTotalMs += performance.now() - state.session.pausedAt;
+  state.session.pausedAt = null;
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
-  runPhase();
+  runPhase(state.session.phaseRemainingMs);
 }
 
 function prepareSessionEnding() {
@@ -1174,7 +1266,8 @@ async function finishSession(sessionId, completed, options = {}) {
     session.date = session.date || new Date().toISOString();
     await putRecord("Session", session);
   }
-  navigate(`postures/${sessionId}`);
+  const skipPostures = !completed || session?.skip_postures || state.sessionOptions.get(sessionId)?.skipPostures;
+  navigate(skipPostures ? `feedback/${sessionId}` : `postures/${sessionId}`);
 }
 
 function stopSessionTimers(options = {}) {
@@ -1191,7 +1284,7 @@ function startPostureSession(routine, sessionId) {
     running: true,
     paused: false,
     intervalId: null,
-    remainingSeconds: 5 * 60,
+    remainingSeconds: POSTURE_DURATION_SECONDS,
     currentPoseIndex: 0,
     lastSpokenIndex: -1,
   };
@@ -1209,10 +1302,10 @@ function startPostureSession(routine, sessionId) {
     if (state.posture.paused) return;
 
     state.posture.remainingSeconds -= 1;
-    const poseDuration = Math.ceil((5 * 60) / routine.poses.length);
+    const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
     state.posture.currentPoseIndex = Math.min(
       routine.poses.length - 1,
-      Math.floor((5 * 60 - state.posture.remainingSeconds) / poseDuration),
+      Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
     );
 
     renderPostureTimer();

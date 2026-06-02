@@ -4,6 +4,7 @@
   --green-200: #bfd9c5;
   --green-500: #5f8c68;
   --green-700: #345f43;
+  --green-800: #244833;
   --moss-100: #e9edd8;
   --moss-300: #a9b983;
   --blush-100: #f4e6df;
@@ -21,6 +22,18 @@
 
 [hidden] {
   display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 body {
@@ -198,6 +211,14 @@ h3 {
   box-shadow: 0 0 0 4px rgba(95, 140, 104, 0.12);
 }
 
+.button:focus-visible,
+.mood-card:focus-visible,
+.feedback-card:focus-visible,
+.auth-form input:focus-visible {
+  outline: 3px solid var(--green-700);
+  outline-offset: 4px;
+}
+
 .auth-message {
   min-height: 22px;
   margin: 0;
@@ -243,7 +264,7 @@ h3 {
 }
 
 .button-danger {
-  background: #6f7f58;
+  background: #596943;
 }
 
 .mood-grid {
