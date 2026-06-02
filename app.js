@@ -256,39 +256,39 @@ const POSTURE_ROUTINES = {
 
 const POSTURE_GUIDES = {
   seated: {
-    movement: "Apoyá pies y pelvis, suavizá hombros y alargá la columna.",
+    movement: "Paso a paso: apoyá los pies, relajá hombros y alargá la columna con cada inhalación.",
     voice:
-      "Sentate en la silla con los dos pies apoyados en el piso. Apoyá las manos sobre los muslos. Inhalando, alargá la columna como si crecieras desde la coronilla. Exhalando, relajá hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
+      "Paso uno. Sentate en la silla con los dos pies apoyados en el piso. Paso dos. Apoyá las manos sobre los muslos. Paso tres. Inhalando, alargá la columna como si crecieras desde la coronilla. Paso cuatro. Exhalando, relajá hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
   },
   "arms-up": {
-    movement: "Subí brazos al inhalar, bajalos al exhalar y mantené pies firmes.",
+    movement: "Paso a paso: inhalá y subí los brazos; exhalá y bajalos lento, con pies firmes.",
     voice:
-      "Sentada en la silla, relajá los hombros y dejá los pies firmes. Inhalando, subí los dos brazos por los costados hasta donde sea cómodo. Exhalando, bajalos despacio. Volvé a inhalar y elevá los brazos, exhalá y soltá. Mantené cuello y mandíbula blandos.",
+      "Paso uno. Sentada en la silla, relajá los hombros y apoyá bien los pies. Paso dos. Inhalando, subí los dos brazos por los costados hasta donde sea cómodo. Paso tres. Exhalando, bajalos despacio. Paso cuatro. Volvé a inhalar y elevá los brazos. Exhalando, bajalos otra vez. Mantené cuello y mandíbula blandos.",
   },
   twist: {
-    movement: "Girá desde el abdomen con apoyo en el asiento o respaldo.",
+    movement: "Paso a paso: crecé al inhalar, girá al exhalar, volvé al centro y cambiá de lado.",
     voice:
-      "Sentada con la espalda larga, apoyá la mano derecha en el respaldo o en el borde de la silla. Inhalando, crecé desde la columna. Exhalando, girá suavemente hacia la derecha desde el abdomen. Inhalando, volvé al centro. Exhalando, cambiá hacia la izquierda con la misma suavidad.",
+      "Paso uno. Sentada con la espalda larga, apoyá la mano derecha en el respaldo o en el borde de la silla. Paso dos. Inhalando, crecé desde la columna. Paso tres. Exhalando, girá suavemente hacia la derecha desde el abdomen. Paso cuatro. Inhalando, volvé al centro. Paso cinco. Exhalando, cambiá hacia la izquierda con la misma suavidad.",
   },
   "forward-fold": {
-    movement: "Cerrá el torso hacia las piernas y dejá caer el peso de la cabeza.",
+    movement: "Paso a paso: alargá la espalda, exhalá y bajá el torso sin forzar.",
     voice:
-      "Desde la silla, separá un poco los pies y apoyá bien las plantas. Inhalando, alargá la espalda. Exhalando, dejá que el torso baje hacia las piernas, sin forzar. Soltá cabeza, cuello y hombros. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso.",
+      "Paso uno. Desde la silla, separá un poco los pies y apoyá bien las plantas. Paso dos. Inhalando, alargá la espalda. Paso tres. Exhalando, dejá que el torso baje hacia las piernas, sin forzar. Paso cuatro. Soltá cabeza, cuello y hombros. Paso cinco. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso.",
   },
   "side-stretch": {
-    movement: "Alargá un costado, respiralo y cambiá hacia el otro lado.",
+    movement: "Paso a paso: brazo derecho arriba, inclinación izquierda; después brazo izquierdo y derecha.",
     voice:
-      "Sentada en la silla, relajá hombros y apoyá los pies. Inhalando, levantá el brazo derecho. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Inhalando, volvé al centro. Exhalando, bajá el brazo. Inhalando, subí el brazo izquierdo. Exhalando, inclinate hacia la derecha. Volvé despacio.",
+      "Paso uno. Sentada en la silla, relajá hombros y apoyá los pies. Paso dos. Inhalando, levantá el brazo derecho. Paso tres. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Paso cuatro. Inhalando, volvé al centro. Paso cinco. Exhalando, bajá el brazo derecho. Paso seis. Inhalando, subí el brazo izquierdo. Paso siete. Exhalando, inclinate hacia la derecha. Volvé despacio al centro.",
   },
   "heart-opener": {
-    movement: "Abrí clavículas, llevá hombros atrás y mantené abdomen suave.",
+    movement: "Paso a paso: tomá la silla, abrí el pecho al inhalar y aflojá al exhalar.",
     voice:
-      "Sentada, tomá el respaldo o los bordes de la silla con suavidad. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Exhalando, aflojá las costillas y el abdomen. No empujes la cintura: dejá que la apertura nazca del pecho y de las clavículas.",
+      "Paso uno. Sentada, tomá el respaldo o los bordes de la silla con suavidad. Paso dos. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Paso tres. Exhalando, aflojá las costillas y el abdomen. Paso cuatro. No empujes la cintura. Dejá que la apertura nazca del pecho y de las clavículas.",
   },
   shoulders: {
-    movement: "Hacé círculos con hombros: suben, van atrás y bajan.",
+    movement: "Paso a paso: hombros arriba al inhalar; atrás y abajo al exhalar.",
     voice:
-      "Sentada en la silla, dejá los brazos relajados. Inhalando, llevá los hombros hacia arriba. Exhalando, mandalos hacia atrás y hacia abajo. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara livianos.",
+      "Paso uno. Sentada en la silla, dejá los brazos relajados. Paso dos. Inhalando, llevá los hombros hacia arriba. Paso tres. Exhalando, mandalos hacia atrás y hacia abajo. Paso cuatro. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara livianos.",
   },
 };
 
@@ -973,9 +973,6 @@ async function renderPosturePage(sessionId) {
         <div class="timer" data-posture-timer>${formatTime(POSTURE_DURATION_SECONDS)}</div>
       </div>
       <div class="posture-space">
-        <div class="posture-figure-wrap">
-          ${postureVisual(postureRoutine.poses[0])}
-        </div>
         <div class="posture-copy">
           <p class="eyebrow">5 minutos de posturas</p>
           <h2 data-posture-name>${postureRoutine.poses[0].name}</h2>
@@ -1318,7 +1315,6 @@ function renderPosturePose(routine) {
   const movement = document.querySelector("[data-posture-movement]");
   const step = document.querySelector("[data-posture-step]");
 
-  updatePostureVisual(pose);
   if (name) name.textContent = pose.name;
   if (cue) cue.textContent = pose.cue;
   if (movement) movement.textContent = guide.movement;
@@ -1387,34 +1383,6 @@ function postureRoutineFor(mood) {
 
 function postureGuideFor(pose) {
   return POSTURE_GUIDES[pose?.id] || POSTURE_GUIDES.seated;
-}
-
-function postureVisual(pose) {
-  return `
-    <div class="posture-visual-card">
-      ${postureFigure(pose.id)}
-    </div>
-  `;
-}
-
-function updatePostureVisual(pose) {
-  const figure = document.querySelector("[data-posture-figure]");
-
-  if (figure) figure.dataset.pose = pose.id;
-}
-
-function postureFigure(pose) {
-  return `
-    <div class="posture-figure" data-posture-figure data-pose="${pose}" aria-hidden="true">
-      <span class="figure-head"></span>
-      <span class="figure-torso"></span>
-      <span class="figure-arm figure-arm-left"></span>
-      <span class="figure-arm figure-arm-right"></span>
-      <span class="figure-leg figure-leg-left"></span>
-      <span class="figure-leg figure-leg-right"></span>
-      <span class="figure-ground"></span>
-    </div>
-  `;
 }
 
 function isAudioEnabled() {
