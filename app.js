@@ -741,12 +741,12 @@ function renderAuthPage() {
       <p class="lead">Usá el mismo alias y PIN para recuperar tus sesiones en cualquier dispositivo.</p>
       <form class="auth-form" data-auth-form novalidate>
         <label>
-          <span>Alias</span>
-          <input name="alias" type="text" autocomplete="username" placeholder="sofibone" required />
+          <span>Usuario</span>
+          <input name="alias" type="text" autocomplete="username" placeholder="Ingresar usuario" required />
         </label>
         <label>
           <span>PIN</span>
-          <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,}" autocomplete="current-password" minlength="4" placeholder="••••" required />
+          <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,}" autocomplete="current-password" minlength="4" placeholder="Ingresar PIN" required />
         </label>
         <p class="auth-message" data-auth-message role="alert" aria-atomic="true"></p>
         <div class="actions">
