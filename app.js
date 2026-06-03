@@ -778,9 +778,9 @@ function renderAuthPage() {
   app.innerHTML = `
     <section class="screen panel">
       ${brandBar("welcome")}
-      <p class="eyebrow">Tu espacio</p>
+      <p class="eyebrow">Pausa consciente</p>
       <h2>Entrá con tu alias</h2>
-      <p class="lead">Usá el mismo alias y PIN para recuperar tus sesiones en cualquier dispositivo.</p>
+      <p class="lead">Al ingresar por primera vez ingresar tu usuario y pin preferido luego usá el mismo alias y PIN para recuperar tus sesiones en cualquier dispositivo.</p>
       <form class="auth-form" data-auth-form novalidate>
         <label>
           <span>Usuario</span>
