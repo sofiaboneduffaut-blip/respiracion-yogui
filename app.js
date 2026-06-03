@@ -810,7 +810,7 @@ function renderMoodPage() {
   app.className = "app-shell";
   app.innerHTML = `
     <section class="screen screen-wide panel">
-      ${brandBar("welcome")}
+      ${brandBar("auth")}
       <h2>¿Cómo te sientes ahora?</h2>
       <div class="mood-grid">
         ${MOODS.map(
@@ -1054,7 +1054,8 @@ function brandBar(backRoute) {
       <div class="topbar-actions">
         ${state.user?.alias ? `<span class="user-chip">${state.user.alias}</span>` : ""}
         ${state.user?.alias ? `<button class="button button-secondary" type="button" data-logout>Cambiar</button>` : ""}
-        ${backRoute ? `<button class="button button-secondary" type="button" data-route="${backRoute}">Volver</button>` : ""}
+        ${backRoute === "auth" ? `<button class="button button-secondary" type="button" data-logout>Volver</button>` : ""}
+        ${backRoute && backRoute !== "auth" ? `<button class="button button-secondary" type="button" data-route="${backRoute}">Volver</button>` : ""}
       </div>
     </div>
   `;
