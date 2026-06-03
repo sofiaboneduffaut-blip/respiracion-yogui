@@ -357,6 +357,7 @@ const appStatus = document.querySelector("#app-status");
 document.addEventListener("DOMContentLoaded", async () => {
   state.db = await openDatabase();
   initSupabase();
+  initPersistentAudioHandling();
   if (isSupabaseEnabled()) {
     state.user = await getStoredProfile();
   } else {
@@ -690,8 +691,49 @@ function announce(message) {
 }
 
 function handleVisibilityChange() {
+  keepAudioAlive();
   if (!document.hidden && state.session.running && !state.session.paused && state.sessionId) {
     updateSessionProgress(state.sessionId);
+  }
+}
+
+function initPersistentAudioHandling() {
+  ["visibilitychange", "pageshow", "focus", "resume"].forEach((eventName) => {
+    window.addEventListener(eventName, keepAudioAlive);
+  });
+
+  if ("mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.setActionHandler("play", () => keepAudioAlive());
+      navigator.mediaSession.setActionHandler("pause", () => {
+        if (state.session.running && !state.session.paused) togglePause();
+        else if (state.posture.running && !state.posture.paused) togglePosturePause();
+        else pauseRoutineAudio(true);
+      });
+    } catch (error) {
+      // Media Session support varies by browser.
+    }
+  }
+}
+
+async function keepAudioAlive() {
+  if (!state.audio.musicEnabled || !state.routine) return;
+  const shouldPlaySession = state.session.running && !state.session.paused;
+  const shouldPlayPosture = state.posture.running && !state.posture.paused;
+  if (!shouldPlaySession && !shouldPlayPosture) return;
+
+  if (state.audio.context?.state === "suspended") {
+    try {
+      await state.audio.context.resume();
+    } catch (error) {
+      // Some mobile browsers only resume after the next user gesture.
+    }
+  }
+
+  if (state.audio.musicElement?.paused) {
+    state.audio.musicElement.play().catch(() => {});
+  } else if (!state.audio.musicElement) {
+    startRoutineAudio(state.routine);
   }
 }
 
@@ -1279,7 +1321,7 @@ function startPostureSession(routine, sessionId) {
     lastSpokenIndex: -1,
   };
 
-  if (state.audio.musicEnabled && state.audio.unlocked && state.routine) {
+  if (state.audio.musicEnabled && state.routine) {
     startRoutineAudio(state.routine).then(() => fadeRoutineAudioTo(POSTURE_MUSIC_VOLUME, 1.2));
   } else {
     fadeRoutineAudioTo(POSTURE_MUSIC_VOLUME, 1.2);
@@ -1444,8 +1486,9 @@ async function unlockAudio() {
 
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) {
+    state.audio.unlocked = "Audio" in window;
     syncAudioUi();
-    return false;
+    return state.audio.unlocked;
   }
 
   if (!state.audio.context) {
@@ -1456,9 +1499,9 @@ async function unlockAudio() {
     if (state.audio.context.state === "suspended") {
       await state.audio.context.resume();
     }
-    state.audio.unlocked = state.audio.context.state === "running";
+    state.audio.unlocked = state.audio.context.state === "running" || "Audio" in window;
   } catch (error) {
-    state.audio.unlocked = false;
+    state.audio.unlocked = "Audio" in window;
   }
 
   syncAudioUi();
@@ -1472,12 +1515,7 @@ async function startRoutineAudio(routine) {
   }
 
   const context = state.audio.context;
-  if (!context || context.state !== "running") {
-    syncAudioUi();
-    return;
-  }
-
-  if (state.audio.routineId === routine.id && state.audio.musicGain) {
+  if (state.audio.routineId === routine.id && (state.audio.musicElement || state.audio.musicGain)) {
     pauseRoutineAudio(false);
     return;
   }
@@ -1485,59 +1523,65 @@ async function startRoutineAudio(routine) {
   stopRoutineAudio();
 
   const theme = musicThemeFor(routine);
-  const now = context.currentTime;
-  const master = context.createGain();
-  const nodes = [master];
+  const canUseWebAudio = context?.state === "running";
+  const master = canUseWebAudio ? context.createGain() : null;
+  const nodes = master ? [master] : [];
   let hasTrack = false;
+  state.audio.musicIntervals = [];
 
-  master.gain.setValueAtTime(0.0001, now);
-  master.gain.exponentialRampToValueAtTime(TRACK_VOLUME, now + 2.2);
-  master.connect(context.destination);
+  if (master) {
+    const now = context.currentTime;
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(TRACK_VOLUME, now + 2.2);
+    master.connect(context.destination);
+  }
 
   if (theme.file && (await audioAssetExists(theme.file))) {
     const audioElement = new Audio(theme.file);
     audioElement.loop = true;
     audioElement.preload = "auto";
     audioElement.crossOrigin = "anonymous";
-    audioElement.volume = 1;
+    audioElement.volume = 0.0001;
+    audioElement.playsInline = true;
 
-    const source = context.createMediaElementSource(audioElement);
-    source.connect(master);
     state.audio.musicElement = audioElement;
-    state.audio.musicSource = source;
+    state.audio.musicSource = null;
     hasTrack = true;
 
     try {
       await audioElement.play();
+      fadeMediaElementTo(TRACK_VOLUME, 2.2);
     } catch (error) {
       hasTrack = false;
     }
   }
 
-  if (theme.rain || !hasTrack) {
+  if (master && (theme.rain || !hasTrack)) {
     nodes.push(...startRainLayer(context, master, hasTrack ? RAIN_VOLUME : RAIN_VOLUME * 1.6));
   }
 
   state.audio.musicGain = master;
   state.audio.musicNodes = nodes;
-  state.audio.musicIntervals = [];
   state.audio.routineId = routine.id;
+  updateMediaSession(theme);
   syncAudioUi();
 }
 
 function pauseRoutineAudio(paused, targetVolume = TRACK_VOLUME) {
   const context = state.audio.context;
   const gain = state.audio.musicGain;
-  if (!context || !gain) return;
+  if (!gain && !state.audio.musicElement) return;
 
   fadeRoutineAudioTo(paused ? 0.0001 : targetVolume, 0.8);
 
   if (state.audio.musicElement) {
     if (paused) {
+      if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
       window.setTimeout(() => {
         if ((state.session.paused || state.posture.paused) && state.audio.musicElement) state.audio.musicElement.pause();
       }, 850);
     } else {
+      if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
       state.audio.musicElement.play().catch(() => {});
     }
   }
@@ -1546,12 +1590,46 @@ function pauseRoutineAudio(paused, targetVolume = TRACK_VOLUME) {
 function fadeRoutineAudioTo(targetVolume, durationSeconds) {
   const context = state.audio.context;
   const gain = state.audio.musicGain;
+  fadeMediaElementTo(targetVolume, durationSeconds);
   if (!context || !gain) return;
 
   const now = context.currentTime;
   gain.gain.cancelScheduledValues(now);
   gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now);
   gain.gain.exponentialRampToValueAtTime(Math.max(targetVolume, 0.0001), now + durationSeconds);
+}
+
+function fadeMediaElementTo(targetVolume, durationSeconds) {
+  const element = state.audio.musicElement;
+  if (!element) return;
+
+  state.audio.musicIntervals.forEach((timerId) => window.clearInterval(timerId));
+  state.audio.musicIntervals = [];
+  const startVolume = element.volume;
+  const endVolume = Math.max(0, Math.min(targetVolume, 1));
+  const startedAt = performance.now();
+  const durationMs = Math.max(durationSeconds * 1000, 1);
+  const timerId = window.setInterval(() => {
+    const progress = Math.min((performance.now() - startedAt) / durationMs, 1);
+    element.volume = startVolume + (endVolume - startVolume) * progress;
+    if (progress >= 1) {
+      window.clearInterval(timerId);
+      state.audio.musicIntervals = state.audio.musicIntervals.filter((id) => id !== timerId);
+    }
+  }, 80);
+
+  state.audio.musicIntervals.push(timerId);
+}
+
+function updateMediaSession(theme) {
+  if (!("mediaSession" in navigator) || !("MediaMetadata" in window)) return;
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: state.routine?.name || "Respiracion Yogui",
+    artist: "Respiracion Yogui",
+    album: theme.name,
+  });
+  navigator.mediaSession.playbackState = "playing";
 }
 
 function stopRoutineAudio() {
@@ -1591,6 +1669,7 @@ function stopRoutineAudio() {
   });
   state.audio.musicIntervals = [];
   state.audio.routineId = null;
+  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "none";
 }
 
 async function audioAssetExists(url) {
