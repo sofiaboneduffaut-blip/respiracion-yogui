@@ -667,6 +667,10 @@ function toSupabaseSession(session) {
 }
 
 function navigate(route) {
+  if (getRoute() === route) {
+    renderRoute();
+    return;
+  }
   window.location.hash = route;
 }
 
@@ -763,7 +767,7 @@ function renderWelcomePage() {
       <p class="eyebrow">Pausa consciente</p>
       <h1>Respiración Yogui</h1>
       <p class="lead">
-        Elige cómo te sientes y recibe una rutina de respiración pensada para acompañarte en este momento.
+        Elige cómo te sientes y recibe una rutina de respiración para tu pausa diaria.
       </p>
       <div class="actions">
         <button class="button" type="button" data-route="${isSupabaseEnabled() && !state.user ? "auth" : "moods"}">Comenzar</button>
