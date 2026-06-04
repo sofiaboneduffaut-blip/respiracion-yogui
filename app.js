@@ -1850,7 +1850,7 @@ function speakBreathingPrimer() {
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(
-    "Antes de empezar tu rutina, recordá respirar por la nariz. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, bajan clavículas, tórax y abdomen, suave y sin apuro.",
+    "Antes de empezar tu rutina, recordá respirar por la nariz. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen, suave y sin apuro.",
   );
   utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
   utterance.rate = VOICE_RATE;
