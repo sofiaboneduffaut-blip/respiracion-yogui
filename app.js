@@ -785,7 +785,7 @@ function renderAuthPage() {
       ${brandBar("welcome")}
       <p class="eyebrow">Pausa consciente</p>
       <h2>Entrá con tu alias</h2>
-      <p class="lead">Al ingresar por primera vez: ingresar tu usuario y pin preferidos, luego usá el mismo usuario y pin para recuperar tus sesiones en cualquier dispositivo.</p>
+      <p class="lead">Al ingresar por primera vez: ingresar tu usuario y pin preferidos, luego entrar con el mismo usuario y pin para recuperar tus sesiones en cualquier dispositivo.</p>
       <form class="auth-form" data-auth-form novalidate>
         <label>
           <span>Usuario</span>
