@@ -10,6 +10,7 @@ const VOICE_RATE = 0.74;
 const VOICE_PITCH = 1.08;
 const VOICE_VOLUME = 0.38;
 const POSTURE_DURATION_SECONDS = 5 * 60;
+const BREATHING_PRIMER_SECONDS = 18;
 
 const MOODS = [
   {
@@ -784,7 +785,7 @@ function renderAuthPage() {
       ${brandBar("welcome")}
       <p class="eyebrow">Pausa consciente</p>
       <h2>Entrá con tu alias</h2>
-      <p class="lead">Al ingresar por primera vez: ingresar tu usuario y pin preferidos, luego usá el mismo alias y PIN para recuperar tus sesiones en cualquier dispositivo.</p>
+      <p class="lead">Al ingresar por primera vez: ingresar tu usuario y pin preferidos, luego usá el mismo usuario y pin para recuperar tus sesiones en cualquier dispositivo.</p>
       <form class="auth-form" data-auth-form novalidate>
         <label>
           <span>Usuario</span>
@@ -1053,8 +1054,7 @@ function brandBar(backRoute) {
       <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
       <div class="topbar-actions">
         ${state.user?.alias ? `<span class="user-chip">${state.user.alias}</span>` : ""}
-        ${state.user?.alias ? `<button class="button button-secondary" type="button" data-logout>Cambiar</button>` : ""}
-        ${backRoute === "auth" ? `<button class="button button-secondary" type="button" data-logout>Volver</button>` : ""}
+        ${state.user?.alias ? `<button class="button button-secondary" type="button" data-logout>Cambiar usuario</button>` : ""}
         ${backRoute && backRoute !== "auth" ? `<button class="button button-secondary" type="button" data-route="${backRoute}">Volver</button>` : ""}
       </div>
     </div>
@@ -1170,11 +1170,7 @@ function startBreathingSession(routine, sessionId) {
 
   startRoutineAudio(routine);
   renderTimer();
-  runPhase();
-
-  state.session.intervalId = window.setInterval(() => {
-    updateSessionProgress(sessionId);
-  }, 250);
+  runBreathingPrimer(BREATHING_PRIMER_SECONDS * 1000);
 }
 
 function buildPhases(routine) {
@@ -1245,6 +1241,31 @@ function runPhase(durationOverrideMs) {
   }, phaseDurationMs);
 }
 
+function runBreathingPrimer(durationOverrideMs) {
+  const circle = document.querySelector("[data-circle]");
+  const instruction = document.querySelector("[data-instruction]");
+  if (!circle || !instruction || state.session.paused) return;
+
+  const primerDurationMs = Math.max(0, durationOverrideMs ?? BREATHING_PRIMER_SECONDS * 1000);
+  instruction.textContent = "Prepara";
+  state.session.currentPhaseLabel = "Prepara";
+  state.session.phaseStartedAt = performance.now();
+  state.session.phaseRemainingMs = primerDurationMs;
+  circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
+  circle.style.setProperty("--breath-scale", "0.82");
+  circle.style.transitionTimingFunction = "ease-in-out";
+  speakBreathingPrimer();
+
+  state.session.phaseTimeoutId = window.setTimeout(() => {
+    state.session.startedAt = performance.now();
+    state.session.pausedTotalMs = 0;
+    runPhase();
+    state.session.intervalId = window.setInterval(() => {
+      updateSessionProgress(state.sessionId);
+    }, 250);
+  }, primerDurationMs);
+}
+
 function togglePause() {
   const button = document.querySelector("[data-pause]");
   const circle = document.querySelector("[data-circle]");
@@ -1269,7 +1290,8 @@ function togglePause() {
   state.session.pausedAt = null;
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
-  runPhase(state.session.phaseRemainingMs);
+  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer(state.session.phaseRemainingMs);
+  else runPhase(state.session.phaseRemainingMs);
 }
 
 function prepareSessionEnding() {
@@ -1815,6 +1837,21 @@ function speakInstruction(label) {
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(spokenLabels[label] || label);
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakBreathingPrimer() {
+  if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return;
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(
+    "Antes de empezar tu rutina, recordá respirar por la nariz. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, bajan clavículas, tórax y abdomen, suave y sin apuro.",
+  );
   utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
   utterance.rate = VOICE_RATE;
   utterance.pitch = VOICE_PITCH;
