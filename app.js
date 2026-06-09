@@ -174,11 +174,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas tranquilizantes",
     objective: "Interiorizar, bajar la activación y dar descanso mental",
     poses: [
-      { id: "seated", name: "Anclaje en la silla", cue: "Apoyá ambos pies y sentí el peso del cuerpo." },
-      { id: "shoulders", name: "Descenso de hombros", cue: "Subí y bajá hombros lento, sin apurar la respiración." },
-      { id: "forward-fold", name: "Flexión hacia adelante", cue: "Cerrá el torso sobre las piernas y soltá la cabeza." },
-      { id: "side-stretch", name: "Costado blando", cue: "Estirá un lado, volvé al centro y cambiá." },
-      { id: "seated", name: "Quietud sentada", cue: "Volvé a la vertical y quedate respirando natural." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "shoulders", name: "Hombros", cue: "Subí hombros al inhalar y bajalos hacia atrás al exhalar." },
+      { id: "forward-fold", name: "Flexión hacia adelante", cue: "Bajá el torso hacia las piernas sin forzar y con columna derecha." },
+      { id: "side-stretch", name: "Lateral", cue: "Abrí un costado, volvé al centro y cambiá de lado." },
+      { id: "seated", name: "Sentada", cue: "Volvé a la vertical y registrá la respiración." },
     ],
   },
   stressed: {
@@ -186,11 +186,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas tranquilizantes",
     objective: "Soltar cuello, hombros y espalda alta desde la silla",
     poses: [
-      { id: "shoulders", name: "Círculos de hombros", cue: "Mové hombros hacia atrás y hacia abajo." },
-      { id: "heart-opener", name: "Apertura de pecho", cue: "Tomá el respaldo o los bordes de la silla y abrí clavículas." },
-      { id: "twist", name: "Torsión de oficina", cue: "Girá suave usando el respaldo como apoyo." },
-      { id: "forward-fold", name: "Descanso hacia adelante", cue: "Dejá que el torso caiga sobre las piernas." },
-      { id: "seated", name: "Mandíbula suelta", cue: "Volvé al centro y aflojá rostro, manos y abdomen." },
+      { id: "shoulders", name: "Hombros", cue: "Subí hombros al inhalar y bajalos hacia atrás al exhalar." },
+      { id: "heart-opener", name: "Apertura de pecho", cue: "Abrí el pecho desde las clavículas sin empujar la cintura." },
+      { id: "forward-fold", name: "Flexión hacia adelante", cue: "Bajá el torso hacia las piernas sin forzar y con columna derecha." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
+      { id: "seated", name: "Sentada", cue: "Volvé al centro y relajá hombros, mandíbula y abdomen." },
     ],
   },
   tired: {
@@ -198,11 +198,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas vitalizantes",
     objective: "Subir energía con extensión, apertura y movimiento dinámico",
     poses: [
-      { id: "seated", name: "Base activa", cue: "Sentate cerca del borde y apoyá firme los pies." },
-      { id: "arms-up", name: "Brazos arriba dinámicos", cue: "Subí brazos al inhalar y bajalos al exhalar." },
-      { id: "heart-opener", name: "Extensión de pecho", cue: "Abrí el pecho hacia adelante sin comprimir la cintura." },
-      { id: "side-stretch", name: "Costados despiertos", cue: "Alargá un costado y después el otro." },
-      { id: "shoulders", name: "Hombros energizantes", cue: "Hacé círculos amplios para activar la espalda alta." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "heart-opener", name: "Apertura de pecho", cue: "Abrí el pecho desde las clavículas sin empujar la cintura." },
+      { id: "forward-fold", name: "Flexión hacia adelante", cue: "Bajá el torso hacia las piernas sin forzar y con columna derecha." },
+      { id: "arms-up", name: "Brazos arriba", cue: "Subí los brazos al inhalar y bajalos despacio al exhalar." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
     ],
   },
   distracted: {
@@ -210,11 +210,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas equilibrantes",
     objective: "Ordenar atención con torsión, lateralidad y eje",
     poses: [
-      { id: "seated", name: "Eje y mirada", cue: "Alargá la columna y elegí un punto estable." },
-      { id: "side-stretch", name: "Inclinación lateral", cue: "Llevá un brazo arriba y abrí un costado." },
-      { id: "twist", name: "Torsión espinal", cue: "Girá desde el abdomen, con hombros suaves." },
-      { id: "arms-up", name: "Brazos coordinados", cue: "Subí y bajá brazos siguiendo el ritmo respiratorio." },
-      { id: "seated", name: "Centro estable", cue: "Volvé al eje y registrá la respiración nasal." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "side-stretch", name: "Lateral", cue: "Abrí un costado, volvé al centro y cambiá de lado." },
+      { id: "shoulders", name: "Hombros", cue: "Subí hombros al inhalar y bajalos hacia atrás al exhalar." },
+      { id: "heart-opener", name: "Apertura de pecho", cue: "Abrí el pecho desde las clavículas sin empujar la cintura." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
     ],
   },
   "low energy": {
@@ -222,11 +222,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas vitalizantes",
     objective: "Estimular energía con extensiones y movimientos activos",
     poses: [
-      { id: "arms-up", name: "Elevación activa", cue: "Subí brazos con amplitud y despertá el torso." },
-      { id: "heart-opener", name: "Extensión hacia atrás", cue: "Abrí el pecho y llevá hombros suavemente atrás." },
-      { id: "shoulders", name: "Círculos estimulantes", cue: "Mové hombros con un ritmo un poco más vivo." },
-      { id: "side-stretch", name: "Lateral dinámico", cue: "Cambiá de lado con respiración amplia." },
-      { id: "seated", name: "Eje activo", cue: "Quedate sentado con la columna larga y energía disponible." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "arms-up", name: "Brazos arriba", cue: "Subí los brazos al inhalar y bajalos despacio al exhalar." },
+      { id: "heart-opener", name: "Apertura de pecho", cue: "Abrí el pecho desde las clavículas sin empujar la cintura." },
+      { id: "side-stretch", name: "Lateral", cue: "Abrí un costado, volvé al centro y cambiá de lado." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
     ],
   },
   "sleep better": {
@@ -234,11 +234,11 @@ const POSTURE_ROUTINES = {
     category: "Posturas tranquilizantes",
     objective: "Bajar energía y preparar descanso desde la silla",
     poses: [
-      { id: "seated", name: "Asiento tranquilo", cue: "Apoyá manos sobre piernas y bajá la mirada." },
-      { id: "side-stretch", name: "Costados suaves", cue: "Estirá un lado y otro sin buscar intensidad." },
-      { id: "twist", name: "Torsión mínima", cue: "Girá apenas, como si desenredaras la espalda." },
-      { id: "forward-fold", name: "Flexión de descanso", cue: "Cerrá el torso hacia adelante y soltá el peso." },
-      { id: "seated", name: "Cierre en calma", cue: "Volvé lento y quedate respirando en silencio." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "side-stretch", name: "Lateral", cue: "Abrí un costado, volvé al centro y cambiá de lado." },
+      { id: "shoulders", name: "Hombros", cue: "Subí hombros al inhalar y bajalos hacia atrás al exhalar." },
+      { id: "forward-fold", name: "Flexión hacia adelante", cue: "Bajá el torso hacia las piernas sin forzar y con columna derecha." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
     ],
   },
   balanced: {
@@ -246,50 +246,50 @@ const POSTURE_ROUTINES = {
     category: "Posturas equilibrantes",
     objective: "Balancear lateralidad, torsión y respiración nasal",
     poses: [
-      { id: "seated", name: "Eje sentado", cue: "Crecé desde la columna con pies estables." },
-      { id: "side-stretch", name: "Inclinación lateral", cue: "Abrí un costado y después el otro." },
-      { id: "twist", name: "Torsión equilibrante", cue: "Girá a ambos lados con el mismo tiempo." },
-      { id: "arms-up", name: "Respiración con brazos", cue: "Subí brazos al inhalar y bajalos al exhalar." },
-      { id: "seated", name: "Respiración nasal", cue: "Cerrá con atención en el flujo de aire por la nariz." },
+      { id: "seated", name: "Sentada", cue: "Apoyá los pies, las manos sobre los muslos y alargá la columna." },
+      { id: "shoulders", name: "Hombros", cue: "Subí hombros al inhalar y bajalos hacia atrás al exhalar." },
+      { id: "side-stretch", name: "Lateral", cue: "Abrí un costado, volvé al centro y cambiá de lado." },
+      { id: "arms-up", name: "Brazos arriba", cue: "Subí los brazos al inhalar y bajalos despacio al exhalar." },
+      { id: "twist", name: "Torsión", cue: "Giramos desde el abdomen, primero hacia un lado y después hacia el otro." },
     ],
   },
 };
 
 const POSTURE_GUIDES = {
   seated: {
-    movement: "Paso a paso: apoyá los pies, relajá hombros y alargá la columna con cada inhalación.",
+    movement: "Paso a paso: pies apoyados, manos sobre muslos, columna larga y exhalación suave.",
     voice:
-      "Paso uno. Sentate en la silla con los dos pies apoyados en el piso. Paso dos. Apoyá las manos sobre los muslos. Paso tres. Inhalando, alargá la columna como si crecieras desde la coronilla. Paso cuatro. Exhalando, relajá hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
+      "Nos sentamos en la silla con los dos pies apoyados en el piso. Luego apoyamos las manos sobre los muslos. Inhalando, alargar la columna como si crecieras desde el coxis hacia la coronilla. Exhalando, relajar hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
   },
   "arms-up": {
-    movement: "Paso a paso: inhalá y subí los brazos; exhalá y bajalos lento, con pies firmes.",
+    movement: "Paso a paso: inhalá y subí brazos; exhalá y bajalos despacio, con cuello relajado.",
     voice:
-      "Paso uno. Sentada en la silla, relajá los hombros y apoyá bien los pies. Paso dos. Inhalando, subí los dos brazos por los costados hasta donde sea cómodo. Paso tres. Exhalando, bajalos despacio. Paso cuatro. Volvé a inhalar y elevá los brazos. Exhalando, bajalos otra vez. Mantené cuello y mandíbula blandos.",
+      "Continuamos en la silla, relajar los hombros y apoyar bien los pies. Inhalando, debemos subir los dos brazos por los costados hasta donde sea cómodo. Exhalando, bajamos brazos despacio. Inhalando elevamos los brazos. Exhalando, se bajan brazos otra vez, manteniendo cuello y mandíbula relajados.",
   },
   twist: {
-    movement: "Paso a paso: crecé al inhalar, girá al exhalar, volvé al centro y cambiá de lado.",
+    movement: "Paso a paso: inhalá subiendo un brazo, exhalá en torsión, respiramos y cambiamos de lado.",
     voice:
-      "Paso uno. Sentada con la espalda larga, apoyá la mano derecha en el respaldo o en el borde de la silla. Paso dos. Inhalando, crecé desde la columna. Paso tres. Exhalando, girá suavemente hacia la derecha desde el abdomen. Paso cuatro. Inhalando, volvé al centro. Paso cinco. Exhalando, cambiá hacia la izquierda con la misma suavidad.",
+      "Sentada con la espalda larga y brazos al costado de la silla, vamos a comenzar a inhalar subiendo brazo derecho, manteniendo cuello y cabeza en línea y al exhalar, giramos suavemente hacia la izquierda desde el abdomen llevando el brazo derecho al lado contrario en una pequeña torsión. Hacemos dos respiraciones desde el abdomen. Inhalando, volvemos al centro. Ahora al comenzar a inhalar subiendo brazo izquierdo, manteniendo cuello y cabeza en línea y al exhalar, giramos suavemente hacia la derecha desde el abdomen llevando el brazo izquierdo al lado contrario en una pequeña torsión. Hacemos dos respiraciones desde el abdomen. Inhalando, volvemos al centro.",
   },
   "forward-fold": {
-    movement: "Paso a paso: alargá la espalda, exhalá y bajá el torso sin forzar.",
+    movement: "Paso a paso: alargá espalda, exhalá bajando el torso y volvé vértebra por vértebra.",
     voice:
-      "Paso uno. Desde la silla, separá un poco los pies y apoyá bien las plantas. Paso dos. Inhalando, alargá la espalda. Paso tres. Exhalando, dejá que el torso baje hacia las piernas, sin forzar. Paso cuatro. Soltá cabeza, cuello y hombros. Paso cinco. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso.",
+      "Desde la silla, separá un poco los pies y apoyá bien las plantas. Inhalando, alargá la espalda. Exhalando, dejá que el torso baje hacia las piernas, sin forzar y manteniendo la columna derecha. Soltar cabeza, cuello y hombros. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso. Para volver lo hacemos exhalando con columna curva, vértebra a vértebra y lo último que sube es la cabeza.",
   },
   "side-stretch": {
-    movement: "Paso a paso: brazo derecho arriba, inclinación izquierda; después brazo izquierdo y derecha.",
+    movement: "Paso a paso: brazo derecho arriba e inclinación izquierda; después brazo izquierdo y derecha.",
     voice:
-      "Paso uno. Sentada en la silla, relajá hombros y apoyá los pies. Paso dos. Inhalando, levantá el brazo derecho. Paso tres. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Paso cuatro. Inhalando, volvé al centro. Paso cinco. Exhalando, bajá el brazo derecho. Paso seis. Inhalando, subí el brazo izquierdo. Paso siete. Exhalando, inclinate hacia la derecha. Volvé despacio al centro.",
+      "Sentada en la silla, relajar hombros y apoyar los pies. Inhalando, levantá el brazo derecho. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Inhalando, volvé al centro. Exhalando, bajá el brazo derecho. Inhalando, subí el brazo izquierdo. Exhalando, inclinate hacia la derecha. Volvé despacio al centro.",
   },
   "heart-opener": {
     movement: "Paso a paso: tomá la silla, abrí el pecho al inhalar y aflojá al exhalar.",
     voice:
-      "Paso uno. Sentada, tomá el respaldo o los bordes de la silla con suavidad. Paso dos. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Paso tres. Exhalando, aflojá las costillas y el abdomen. Paso cuatro. No empujes la cintura. Dejá que la apertura nazca del pecho y de las clavículas.",
+      "Sentada, tomá el respaldo o los bordes de la silla con suavidad. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Exhalando, aflojá las costillas y el abdomen. No empujes la cintura. Dejá que la apertura nazca del pecho y de las clavículas.",
   },
   shoulders: {
     movement: "Paso a paso: hombros arriba al inhalar; atrás y abajo al exhalar.",
     voice:
-      "Paso uno. Sentada en la silla, dejá los brazos relajados. Paso dos. Inhalando, llevá los hombros hacia arriba. Paso tres. Exhalando, mandalos hacia atrás y hacia abajo. Paso cuatro. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara livianos.",
+      "Sentada en la silla, dejá los brazos relajados. Inhalando, llevá los hombros hacia arriba. Exhalando, mandalos hacia atrás y hacia abajo. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara relajados.",
   },
 };
 
@@ -1829,7 +1829,7 @@ function speakInstruction(label) {
   if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return;
 
   const spokenLabels = {
-    Inhala: "Inhala suave",
+    Inhala: "Inhala lento",
     Sostén: "Sostén",
     Exhala: "Exhala lento",
     Pausa: "Pausa",
@@ -1850,7 +1850,7 @@ function speakBreathingPrimer() {
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(
-    "Antes de empezar tu rutina, recordá respirar por la nariz. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen, suave y sin apuro.",
+    "Antes de empezar tu rutina, recordá respirar por la nariz de forma lenta y profunda. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen.",
   );
   utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
   utterance.rate = VOICE_RATE;
