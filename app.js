@@ -10,7 +10,7 @@ const VOICE_RATE = 0.74;
 const VOICE_PITCH = 1.08;
 const VOICE_VOLUME = 0.38;
 const POSTURE_DURATION_SECONDS = 5 * 60;
-const BREATHING_PRIMER_SECONDS = 26;
+const BREATHING_PRIMER_SECONDS = 45;
 
 const MOODS = [
   {
@@ -1247,6 +1247,19 @@ function runBreathingPrimer(durationOverrideMs) {
   if (!circle || !instruction || state.session.paused) return;
 
   const primerDurationMs = Math.max(0, durationOverrideMs ?? BREATHING_PRIMER_SECONDS * 1000);
+  let primerCompleted = false;
+  const completePrimer = () => {
+    if (primerCompleted || state.session.paused || !state.session.running || state.session.currentPhaseLabel !== "Prepara") return;
+    primerCompleted = true;
+    window.clearTimeout(state.session.phaseTimeoutId);
+    state.session.startedAt = performance.now();
+    state.session.pausedTotalMs = 0;
+    runPhase();
+    state.session.intervalId = window.setInterval(() => {
+      updateSessionProgress(state.sessionId);
+    }, 250);
+  };
+
   instruction.textContent = "Prepara";
   state.session.currentPhaseLabel = "Prepara";
   state.session.phaseStartedAt = performance.now();
@@ -1254,16 +1267,9 @@ function runBreathingPrimer(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
   circle.style.setProperty("--breath-scale", "0.82");
   circle.style.transitionTimingFunction = "ease-in-out";
-  speakBreathingPrimer();
+  const isPrimerSpoken = speakBreathingPrimer(completePrimer);
 
-  state.session.phaseTimeoutId = window.setTimeout(() => {
-    state.session.startedAt = performance.now();
-    state.session.pausedTotalMs = 0;
-    runPhase();
-    state.session.intervalId = window.setInterval(() => {
-      updateSessionProgress(state.sessionId);
-    }, 250);
-  }, primerDurationMs);
+  state.session.phaseTimeoutId = window.setTimeout(completePrimer, isPrimerSpoken ? primerDurationMs : 4000);
 }
 
 function togglePause() {
@@ -1290,7 +1296,7 @@ function togglePause() {
   state.session.pausedAt = null;
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
-  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer(state.session.phaseRemainingMs);
+  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer();
   else runPhase(state.session.phaseRemainingMs);
 }
 
@@ -1845,8 +1851,8 @@ function speakInstruction(label) {
   window.speechSynthesis.speak(utterance);
 }
 
-function speakBreathingPrimer() {
-  if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return;
+function speakBreathingPrimer(onComplete) {
+  if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return false;
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(
@@ -1857,7 +1863,14 @@ function speakBreathingPrimer() {
   utterance.pitch = VOICE_PITCH;
   utterance.volume = VOICE_VOLUME;
   if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  utterance.onend = () => {
+    window.setTimeout(() => onComplete?.(), 900);
+  };
+  utterance.onerror = () => {
+    window.setTimeout(() => onComplete?.(), 900);
+  };
   window.speechSynthesis.speak(utterance);
+  return true;
 }
 
 function speakClosingNotice() {
