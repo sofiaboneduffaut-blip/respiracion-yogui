@@ -349,6 +349,8 @@ const state = {
     musicIntervals: [],
     routineId: null,
     spanishVoice: null,
+    preferredVoiceURI: "",
+    voiceLocked: false,
   },
 };
 
@@ -706,6 +708,7 @@ function initPersistentAudioHandling() {
   ["visibilitychange", "pageshow", "focus", "resume"].forEach((eventName) => {
     window.addEventListener(eventName, keepAudioAlive);
   });
+  window.setInterval(keepVoiceAlive, 7000);
 
   if ("mediaSession" in navigator) {
     try {
@@ -726,6 +729,7 @@ async function keepAudioAlive() {
   const shouldPlaySession = state.session.running && !state.session.paused;
   const shouldPlayPosture = state.posture.running && !state.posture.paused;
   if (!shouldPlaySession && !shouldPlayPosture) return;
+  keepVoiceAlive();
 
   if (state.audio.context?.state === "suspended") {
     try {
@@ -739,6 +743,19 @@ async function keepAudioAlive() {
     state.audio.musicElement.play().catch(() => {});
   } else if (!state.audio.musicElement) {
     startRoutineAudio(state.routine);
+  }
+}
+
+function keepVoiceAlive() {
+  if (!state.audio.voiceEnabled || !("speechSynthesis" in window)) return;
+  const shouldSpeakSession = state.session.running && !state.session.paused;
+  const shouldSpeakPosture = state.posture.running && !state.posture.paused;
+  if (!shouldSpeakSession && !shouldSpeakPosture) return;
+
+  try {
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+  } catch (error) {
+    // Some mobile browsers do not allow speech control while backgrounded.
   }
 }
 
@@ -1801,12 +1818,42 @@ function initSpeechVoice() {
   if (!("speechSynthesis" in window)) return;
 
   const assignVoice = () => {
+    if (state.audio.voiceLocked) return;
     const voices = window.speechSynthesis.getVoices();
-    state.audio.spanishVoice = chooseLatinFemaleVoice(voices);
+    const selectedVoice = chooseLatinFemaleVoice(voices);
+    if (!selectedVoice) return;
+    state.audio.spanishVoice = selectedVoice;
+    state.audio.preferredVoiceURI = selectedVoice.voiceURI;
   };
 
   assignVoice();
   window.speechSynthesis.onvoiceschanged = assignVoice;
+}
+
+function lockSpanishVoice() {
+  if (state.audio.voiceLocked) return state.audio.spanishVoice;
+
+  const voices = window.speechSynthesis.getVoices();
+  const selectedVoice =
+    voices.find((voice) => voice.voiceURI === state.audio.preferredVoiceURI) ||
+    state.audio.spanishVoice ||
+    chooseLatinFemaleVoice(voices);
+
+  state.audio.spanishVoice = selectedVoice || null;
+  state.audio.preferredVoiceURI = selectedVoice?.voiceURI || "";
+  state.audio.voiceLocked = true;
+  return state.audio.spanishVoice;
+}
+
+function createSpanishUtterance(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  const voice = lockSpanishVoice();
+  utterance.lang = voice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (voice) utterance.voice = voice;
+  return utterance;
 }
 
 function chooseLatinFemaleVoice(voices) {
@@ -1872,12 +1919,7 @@ function speakInstruction(label) {
   };
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(spokenLabels[label] || label);
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  const utterance = createSpanishUtterance(spokenLabels[label] || label);
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1885,14 +1927,9 @@ function speakBreathingPrimer(onComplete) {
   if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return false;
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(
+  const utterance = createSpanishUtterance(
     "Antes de empezar tu rutina, recordá respirar por la nariz de forma lenta y profunda. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen.",
   );
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   utterance.onend = () => {
     window.setTimeout(() => onComplete?.(), 900);
   };
@@ -1907,12 +1944,7 @@ function speakClosingNotice() {
   if (!state.audio.voiceEnabled || !("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance("Tu respiración está por terminar");
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  const utterance = createSpanishUtterance("Tu respiración está por terminar");
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1920,12 +1952,7 @@ function speakPostureClosingNotice() {
   if (!state.audio.voiceEnabled || state.posture.paused || !("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance("Tu rutina de posturas está por terminar");
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  const utterance = createSpanishUtterance("Tu rutina de posturas está por terminar");
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1934,12 +1961,7 @@ function speakPostureCue(pose) {
 
   const guide = postureGuideFor(pose);
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(`Ahora, ${pose.name}. ${guide.voice}`);
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  const utterance = createSpanishUtterance(`Ahora, ${pose.name}. ${guide.voice}`);
   window.speechSynthesis.speak(utterance);
 }
 
