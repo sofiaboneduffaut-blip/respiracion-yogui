@@ -1352,6 +1352,8 @@ function startPostureSession(routine, sessionId) {
     remainingSeconds: POSTURE_DURATION_SECONDS,
     currentPoseIndex: 0,
     lastSpokenIndex: -1,
+    endingWarned: false,
+    finishing: false,
   };
 
   if (state.audio.musicEnabled && state.routine) {
@@ -1367,14 +1369,21 @@ function startPostureSession(routine, sessionId) {
     if (state.posture.paused) return;
 
     state.posture.remainingSeconds -= 1;
-    const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
-    state.posture.currentPoseIndex = Math.min(
-      routine.poses.length - 1,
-      Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
-    );
-
     renderPostureTimer();
-    renderPosturePose(routine);
+
+    if (state.posture.remainingSeconds <= 15 && !state.posture.endingWarned) {
+      preparePostureEnding();
+    }
+
+    if (!state.posture.endingWarned) {
+      const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
+      state.posture.currentPoseIndex = Math.min(
+        routine.poses.length - 1,
+        Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
+      );
+
+      renderPosturePose(routine);
+    }
 
     if (state.posture.remainingSeconds <= 0) {
       finishPostureSession(sessionId);
@@ -1401,6 +1410,21 @@ function renderPosturePose(routine) {
   }
 }
 
+function preparePostureEnding() {
+  state.posture.endingWarned = true;
+  const name = document.querySelector("[data-posture-name]");
+  const cue = document.querySelector("[data-posture-cue]");
+  const movement = document.querySelector("[data-posture-movement]");
+  const step = document.querySelector("[data-posture-step]");
+
+  if (name) name.textContent = "Cierre";
+  if (cue) cue.textContent = "La rutina de posturas está por terminar.";
+  if (movement) movement.textContent = "Dejá que el cuerpo vuelva a la quietud y acompañá el cierre con una respiración suave.";
+  if (step) step.textContent = "Cerrando";
+  fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
+  speakPostureClosingNotice();
+}
+
 function renderPostureTimer() {
   const timer = document.querySelector("[data-posture-timer]");
   if (timer) timer.textContent = formatTime(Math.max(0, state.posture.remainingSeconds));
@@ -1417,17 +1441,23 @@ function togglePosturePause() {
     return;
   }
 
+  if (state.posture.endingWarned) {
+    speakPostureClosingNotice();
+    return;
+  }
+
   const routine = postureRoutineFor(state.routine?.mood);
   const pose = routine.poses[state.posture.currentPoseIndex] || routine.poses[0];
   speakPostureCue(pose);
 }
 
 async function finishPostureSession(sessionId) {
-  if (!state.posture.running) return;
+  if (!state.posture.running || state.posture.finishing) return;
+  state.posture.finishing = true;
   stopPostureTimers();
   stopVoice();
-  fadeRoutineAudioTo(0.0001, 0.9);
-  await wait(500);
+  fadeRoutineAudioTo(0.0001, 1.4);
+  await wait(900);
   stopRoutineAudio();
   navigate(`feedback/${sessionId}`);
 }
@@ -1878,6 +1908,19 @@ function speakClosingNotice() {
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance("Tu respiración está por terminar");
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakPostureClosingNotice() {
+  if (!state.audio.voiceEnabled || state.posture.paused || !("speechSynthesis" in window)) return;
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance("Tu rutina de posturas está por terminar");
   utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
   utterance.rate = VOICE_RATE;
   utterance.pitch = VOICE_PITCH;
