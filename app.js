@@ -349,8 +349,6 @@ const state = {
     musicIntervals: [],
     routineId: null,
     spanishVoice: null,
-    preferredVoiceURI: "",
-    voiceLocked: false,
   },
 };
 
@@ -1818,42 +1816,12 @@ function initSpeechVoice() {
   if (!("speechSynthesis" in window)) return;
 
   const assignVoice = () => {
-    if (state.audio.voiceLocked) return;
     const voices = window.speechSynthesis.getVoices();
-    const selectedVoice = chooseLatinFemaleVoice(voices);
-    if (!selectedVoice) return;
-    state.audio.spanishVoice = selectedVoice;
-    state.audio.preferredVoiceURI = selectedVoice.voiceURI;
+    state.audio.spanishVoice = chooseLatinFemaleVoice(voices);
   };
 
   assignVoice();
   window.speechSynthesis.onvoiceschanged = assignVoice;
-}
-
-function lockSpanishVoice() {
-  if (state.audio.voiceLocked) return state.audio.spanishVoice;
-
-  const voices = window.speechSynthesis.getVoices();
-  const selectedVoice =
-    voices.find((voice) => voice.voiceURI === state.audio.preferredVoiceURI) ||
-    state.audio.spanishVoice ||
-    chooseLatinFemaleVoice(voices);
-
-  state.audio.spanishVoice = selectedVoice || null;
-  state.audio.preferredVoiceURI = selectedVoice?.voiceURI || "";
-  state.audio.voiceLocked = true;
-  return state.audio.spanishVoice;
-}
-
-function createSpanishUtterance(text) {
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voice = lockSpanishVoice();
-  utterance.lang = voice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (voice) utterance.voice = voice;
-  return utterance;
 }
 
 function chooseLatinFemaleVoice(voices) {
@@ -1919,7 +1887,12 @@ function speakInstruction(label) {
   };
 
   window.speechSynthesis.cancel();
-  const utterance = createSpanishUtterance(spokenLabels[label] || label);
+  const utterance = new SpeechSynthesisUtterance(spokenLabels[label] || label);
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1927,9 +1900,14 @@ function speakBreathingPrimer(onComplete) {
   if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return false;
 
   window.speechSynthesis.cancel();
-  const utterance = createSpanishUtterance(
+  const utterance = new SpeechSynthesisUtterance(
     "Antes de empezar tu rutina, recordá respirar por la nariz de forma lenta y profunda. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen.",
   );
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   utterance.onend = () => {
     window.setTimeout(() => onComplete?.(), 900);
   };
@@ -1944,7 +1922,12 @@ function speakClosingNotice() {
   if (!state.audio.voiceEnabled || !("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
-  const utterance = createSpanishUtterance("Tu respiración está por terminar");
+  const utterance = new SpeechSynthesisUtterance("Tu respiración está por terminar");
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1952,7 +1935,12 @@ function speakPostureClosingNotice() {
   if (!state.audio.voiceEnabled || state.posture.paused || !("speechSynthesis" in window)) return;
 
   window.speechSynthesis.cancel();
-  const utterance = createSpanishUtterance("Tu rutina de posturas está por terminar");
+  const utterance = new SpeechSynthesisUtterance("Tu rutina de posturas está por terminar");
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -1961,7 +1949,12 @@ function speakPostureCue(pose) {
 
   const guide = postureGuideFor(pose);
   window.speechSynthesis.cancel();
-  const utterance = createSpanishUtterance(`Ahora, ${pose.name}. ${guide.voice}`);
+  const utterance = new SpeechSynthesisUtterance(`Ahora, ${pose.name}. ${guide.voice}`);
+  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
+  utterance.rate = VOICE_RATE;
+  utterance.pitch = VOICE_PITCH;
+  utterance.volume = VOICE_VOLUME;
+  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
   window.speechSynthesis.speak(utterance);
 }
 
