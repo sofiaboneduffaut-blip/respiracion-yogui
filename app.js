@@ -168,6 +168,15 @@ const MUSIC_THEMES = {
   },
 };
 
+const GUIDE_AUDIO = {
+  breathing: {
+    anxious: "assets/audio/ansiedad-calma-lunar.m4a",
+  },
+  postures: {
+    anxious: "assets/audio/ansiedad-posturas.m4a",
+  },
+};
+
 const POSTURE_ROUTINES = {
   anxious: {
     name: "Pausa tranquilizante en silla",
@@ -348,6 +357,8 @@ const state = {
     musicNodes: [],
     musicIntervals: [],
     routineId: null,
+    guideElement: null,
+    guideKey: null,
     spanishVoice: null,
   },
 };
@@ -728,6 +739,10 @@ async function keepAudioAlive() {
   const shouldPlayPosture = state.posture.running && !state.posture.paused;
   if (!shouldPlaySession && !shouldPlayPosture) return;
   keepVoiceAlive();
+
+  if (state.audio.guideElement?.paused && !state.audio.guideElement.ended) {
+    state.audio.guideElement.play().catch(() => {});
+  }
 
   if (state.audio.context?.state === "suspended") {
     try {
@@ -1184,6 +1199,7 @@ function startBreathingSession(routine, sessionId) {
   };
 
   startRoutineAudio(routine);
+  startGuideAudio("breathing", routine.mood);
   renderTimer();
   runBreathingPrimer(BREATHING_PRIMER_SECONDS * 1000);
 }
@@ -1248,7 +1264,7 @@ function runPhase(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${phaseDurationMs}ms`);
   circle.style.setProperty("--breath-scale", String(phase.scale));
   circle.style.transitionTimingFunction = phase.easing;
-  if (!state.session.endingWarned) speakInstruction(phase.label);
+  if (!state.session.endingWarned && !isGuideAudioActive("breathing")) speakInstruction(phase.label);
 
   state.session.phaseTimeoutId = window.setTimeout(() => {
     state.session.currentPhaseIndex += 1;
@@ -1282,7 +1298,7 @@ function runBreathingPrimer(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
   circle.style.setProperty("--breath-scale", "0.82");
   circle.style.transitionTimingFunction = "ease-in-out";
-  const isPrimerSpoken = speakBreathingPrimer(completePrimer);
+  const isPrimerSpoken = isGuideAudioActive("breathing") || speakBreathingPrimer(completePrimer);
 
   state.session.phaseTimeoutId = window.setTimeout(completePrimer, isPrimerSpoken ? primerDurationMs : 4000);
 }
@@ -1303,6 +1319,7 @@ function togglePause() {
     window.clearTimeout(state.session.phaseTimeoutId);
     if (circle) circle.style.transitionDuration = "0ms";
     pauseRoutineAudio(true);
+    pauseGuideAudio(true);
     stopVoice();
     return;
   }
@@ -1311,6 +1328,7 @@ function togglePause() {
   state.session.pausedAt = null;
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
+  pauseGuideAudio(false);
   if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer();
   else runPhase(state.session.phaseRemainingMs);
 }
@@ -1320,7 +1338,7 @@ function prepareSessionEnding() {
   const instruction = document.querySelector("[data-instruction]");
   if (instruction) instruction.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.12), 5);
-  speakClosingNotice();
+  if (!isGuideAudioActive("breathing")) speakClosingNotice();
 }
 
 async function finishSession(sessionId, completed, options = {}) {
@@ -1339,6 +1357,7 @@ async function finishSession(sessionId, completed, options = {}) {
   }
 
   stopVoice();
+  stopGuideAudio();
   state.session.running = false;
   const session = await getRecord("Session", sessionId);
   if (session) {
@@ -1354,6 +1373,7 @@ function stopSessionTimers(options = {}) {
   window.clearInterval(state.session.intervalId);
   window.clearTimeout(state.session.phaseTimeoutId);
   stopVoice();
+  stopGuideAudio();
   if (!options.keepAudio) stopRoutineAudio();
   state.session.running = false;
 }
@@ -1376,6 +1396,7 @@ function startPostureSession(routine, sessionId) {
   } else {
     fadeRoutineAudioTo(POSTURE_MUSIC_VOLUME, 1.2);
   }
+  startGuideAudio("postures", state.routine?.mood);
 
   renderPosturePose(routine);
   renderPostureTimer();
@@ -1419,7 +1440,11 @@ function renderPosturePose(routine) {
   if (movement) movement.textContent = guide.movement;
   if (step) step.textContent = `${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
 
-  if (!state.posture.paused && state.posture.lastSpokenIndex !== state.posture.currentPoseIndex) {
+  if (
+    !isGuideAudioActive("postures") &&
+    !state.posture.paused &&
+    state.posture.lastSpokenIndex !== state.posture.currentPoseIndex
+  ) {
     state.posture.lastSpokenIndex = state.posture.currentPoseIndex;
     speakPostureCue(pose);
   }
@@ -1437,7 +1462,7 @@ function preparePostureEnding() {
   if (movement) movement.textContent = "Dejá que el cuerpo vuelva a la quietud y acompañá el cierre con una respiración suave.";
   if (step) step.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
-  speakPostureClosingNotice();
+  if (!isGuideAudioActive("postures")) speakPostureClosingNotice();
 }
 
 function renderPostureTimer() {
@@ -1450,6 +1475,7 @@ function togglePosturePause() {
   state.posture.paused = !state.posture.paused;
   if (button) button.textContent = state.posture.paused ? "Continuar" : "Pausar";
   pauseRoutineAudio(state.posture.paused, POSTURE_MUSIC_VOLUME);
+  pauseGuideAudio(state.posture.paused);
 
   if (state.posture.paused) {
     stopVoice();
@@ -1457,7 +1483,7 @@ function togglePosturePause() {
   }
 
   if (state.posture.endingWarned) {
-    speakPostureClosingNotice();
+    if (!isGuideAudioActive("postures")) speakPostureClosingNotice();
     return;
   }
 
@@ -1471,6 +1497,7 @@ async function finishPostureSession(sessionId) {
   state.posture.finishing = true;
   stopPostureTimers();
   stopVoice();
+  stopGuideAudio();
   fadeRoutineAudioTo(0.0001, 1.4);
   await wait(900);
   stopRoutineAudio();
@@ -1534,7 +1561,9 @@ async function toggleAudio() {
     await unlockAudio();
     if (state.audio.unlocked && state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel) speakInstruction(state.session.currentPhaseLabel);
+      if (state.session.currentPhaseLabel && !isGuideAudioActive("breathing")) {
+        speakInstruction(state.session.currentPhaseLabel);
+      }
     }
     syncAudioUi();
     return;
@@ -1546,7 +1575,9 @@ async function toggleAudio() {
     await unlockAudio();
     if (state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel) speakInstruction(state.session.currentPhaseLabel);
+      if (state.session.currentPhaseLabel && !isGuideAudioActive("breathing")) {
+        speakInstruction(state.session.currentPhaseLabel);
+      }
     }
     syncAudioUi();
     return;
@@ -1555,6 +1586,7 @@ async function toggleAudio() {
   state.audio.voiceEnabled = false;
   state.audio.musicEnabled = false;
   stopVoice();
+  stopGuideAudio();
   stopRoutineAudio();
   syncAudioUi();
 }
@@ -1643,6 +1675,75 @@ async function startRoutineAudio(routine) {
   state.audio.routineId = routine.id;
   updateMediaSession(theme);
   syncAudioUi();
+}
+
+function startGuideAudio(type, mood) {
+  if (!state.audio.voiceEnabled) return false;
+
+  const file = GUIDE_AUDIO[type]?.[mood];
+  if (!file) return false;
+
+  const guideKey = `${type}:${mood}`;
+  if (state.audio.guideKey === guideKey && state.audio.guideElement && !state.audio.guideElement.ended) {
+    state.audio.guideElement.play().catch(() => {});
+    return true;
+  }
+
+  stopGuideAudio();
+  stopVoice();
+
+  const guideElement = new Audio(file);
+  guideElement.preload = "auto";
+  guideElement.crossOrigin = "anonymous";
+  guideElement.volume = VOICE_VOLUME;
+  guideElement.playsInline = true;
+  state.audio.guideElement = guideElement;
+  state.audio.guideKey = guideKey;
+
+  guideElement
+    .play()
+    .then(() => {
+      syncAudioUi();
+    })
+    .catch(() => {
+      stopGuideAudio();
+    });
+  try {
+    syncAudioUi();
+    return true;
+  } catch (error) {
+    stopGuideAudio();
+    return false;
+  }
+}
+
+function isGuideAudioActive(type) {
+  return Boolean(
+    state.audio.guideElement &&
+      state.audio.guideKey?.startsWith(`${type}:`) &&
+      !state.audio.guideElement.ended,
+  );
+}
+
+function pauseGuideAudio(paused) {
+  const guideElement = state.audio.guideElement;
+  if (!guideElement) return;
+
+  if (paused) guideElement.pause();
+  else if (!guideElement.ended) guideElement.play().catch(() => {});
+}
+
+function stopGuideAudio() {
+  if (!state.audio.guideElement) {
+    state.audio.guideKey = null;
+    return;
+  }
+
+  state.audio.guideElement.pause();
+  state.audio.guideElement.src = "";
+  state.audio.guideElement.load();
+  state.audio.guideElement = null;
+  state.audio.guideKey = null;
 }
 
 function pauseRoutineAudio(paused, targetVolume = TRACK_VOLUME) {
