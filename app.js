@@ -372,7 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initializeApp() {
   state.db = await openDatabase();
-  initSupabase();
+  await initSupabase();
   initPersistentAudioHandling();
   if (isSupabaseEnabled()) {
     state.user = await getStoredProfile();
@@ -570,9 +570,27 @@ async function getOrCreateUser() {
   return getRecord("User", id);
 }
 
-function initSupabase() {
+async function initSupabase() {
   if (!window.supabase?.createClient || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
-  state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 2500);
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/routines?select=id&limit=1`, {
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      signal: controller.signal,
+    });
+    window.clearTimeout(timeoutId);
+    if (!response.ok) throw new Error(`Supabase unavailable: ${response.status}`);
+    state.supabase = client;
+  } catch (error) {
+    console.warn("Supabase no disponible, usando modo local.", error);
+    state.supabase = null;
+  }
 }
 
 function isSupabaseEnabled() {
@@ -813,8 +831,10 @@ async function renderRoute() {
   stopSessionTimers({ keepAudio: keepRoutineAudio });
   stopPostureTimers();
 
-  if (route === "auth") await renderAuthPage();
-  else if (isSupabaseEnabled() && !state.user && route !== "welcome") await renderAuthPage();
+  if (route === "auth") {
+    if (isSupabaseEnabled()) await renderAuthPage();
+    else navigate("moods");
+  } else if (isSupabaseEnabled() && !state.user && route !== "welcome") await renderAuthPage();
   else if (route === "moods") await renderMoodPage();
   else if (route.startsWith("routine/")) await renderRoutinePage(route.split("/")[1]);
   else if (route.startsWith("session/")) await renderSessionPage(route.split("/")[1]);
