@@ -366,7 +366,11 @@ const state = {
 const app = document.querySelector("#app");
 const appStatus = document.querySelector("#app-status");
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  initializeApp().catch(handleStartupError);
+});
+
+async function initializeApp() {
   state.db = await openDatabase();
   initSupabase();
   initPersistentAudioHandling();
@@ -376,10 +380,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     await seedRoutines();
     state.user = await getOrCreateUser();
   }
-  window.addEventListener("hashchange", renderRoute);
+  window.addEventListener("hashchange", renderRouteSafely);
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  renderRoute();
-});
+  renderRouteSafely();
+}
+
+function handleStartupError(error) {
+  console.error(error);
+  app.className = "app-shell";
+  app.innerHTML = `
+    <section class="screen panel">
+      <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
+      <p class="eyebrow">Pausa consciente</p>
+      <h2>No pude iniciar la aplicación</h2>
+      <p class="lead">Puede haber quedado una sesión guardada con datos viejos. Probá reintentar o reiniciar el acceso.</p>
+      <div class="actions">
+        <button class="button" type="button" data-retry-start>Reintentar</button>
+        <button class="button button-secondary" type="button" data-reset-start>Reiniciar acceso</button>
+      </div>
+    </section>
+  `;
+
+  document.querySelector("[data-retry-start]")?.addEventListener("click", () => window.location.reload());
+  document.querySelector("[data-reset-start]")?.addEventListener("click", () => {
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
+    window.location.hash = "welcome";
+    window.location.reload();
+  });
+}
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -552,7 +580,14 @@ function isSupabaseEnabled() {
 }
 
 async function getStoredProfile() {
-  const stored = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "null");
+  let stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "null");
+  } catch (error) {
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
+    return null;
+  }
+
   if (!stored?.id) return null;
 
   try {
@@ -680,7 +715,7 @@ function toSupabaseSession(session) {
 
 function navigate(route) {
   if (getRoute() === route) {
-    renderRoute();
+    renderRouteSafely();
     return;
   }
   window.location.hash = route;
@@ -788,6 +823,14 @@ async function renderRoute() {
   else renderWelcomePage();
 
   focusPrimaryHeading();
+}
+
+function renderRouteSafely() {
+  renderRoute().catch((error) => {
+    console.error(error);
+    if (getRoute() === "welcome") handleStartupError(error);
+    else navigate("welcome");
+  });
 }
 
 function renderWelcomePage() {
