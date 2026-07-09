@@ -1,8 +1,5 @@
 const DB_NAME = "respiracion-yogui";
 const DB_VERSION = 1;
-const SUPABASE_URL = "https://gdxfolbvlfzeyyddfnck.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FoXU2fyxg-xuCI4HmILYGA_yzD7yLPM";
-const PROFILE_STORAGE_KEY = "respiracion-yogui-profile";
 const TRACK_VOLUME = 0.34;
 const POSTURE_MUSIC_VOLUME = 0.18;
 const RAIN_VOLUME = 0.08;
@@ -315,7 +312,6 @@ const FEELINGS_AFTER = [
 
 const state = {
   db: null,
-  supabase: null,
   user: null,
   mood: null,
   routine: null,
@@ -372,14 +368,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initializeApp() {
   state.db = await openDatabase();
-  await initSupabase();
   initPersistentAudioHandling();
-  if (isSupabaseEnabled()) {
-    state.user = await getStoredProfile();
-  } else {
-    await seedRoutines();
-    state.user = await getOrCreateUser();
-  }
+  await seedRoutines();
+  state.user = await getOrCreateUser();
   window.addEventListener("hashchange", renderRouteSafely);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   renderRouteSafely();
@@ -403,7 +394,6 @@ function handleStartupError(error) {
 
   document.querySelector("[data-retry-start]")?.addEventListener("click", () => window.location.reload());
   document.querySelector("[data-reset-start]")?.addEventListener("click", () => {
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
     window.location.hash = "welcome";
     window.location.reload();
   });
@@ -451,92 +441,18 @@ function requestToPromise(request) {
 }
 
 async function getAll(storeName) {
-  if (isSupabaseEnabled()) {
-    if (storeName === "Routine") {
-      const { data, error } = await state.supabase.from("routines").select("*").order("name");
-      if (error) throw error;
-      return data.map(fromSupabaseRoutine);
-    }
-
-    if (storeName === "Session") {
-      if (!state.user?.id) return [];
-      const { data, error } = await state.supabase
-        .from("sessions")
-        .select("*")
-        .eq("user_id", state.user.id)
-        .order("date", { ascending: true });
-      if (error) throw error;
-      return data.map(fromSupabaseSession);
-    }
-  }
-
   return requestToPromise(tx(storeName).getAll());
 }
 
 async function addRecord(storeName, record) {
-  if (isSupabaseEnabled()) {
-    if (storeName === "Session") {
-      const { data, error } = await state.supabase
-        .from("sessions")
-        .insert(toSupabaseSession(record))
-        .select()
-        .single();
-      if (error) throw error;
-      return data.id;
-    }
-
-    if (storeName === "User") {
-      const { data, error } = await state.supabase.from("profiles").insert(toSupabaseProfile(record)).select().single();
-      if (error) throw error;
-      return data.id;
-    }
-  }
-
   return requestToPromise(tx(storeName, "readwrite").add(record));
 }
 
 async function putRecord(storeName, record) {
-  if (isSupabaseEnabled()) {
-    if (storeName === "Session") {
-      const { error } = await state.supabase.from("sessions").update(toSupabaseSession(record)).eq("id", record.id);
-      if (error) throw error;
-      return record.id;
-    }
-
-    if (storeName === "User") {
-      const { error } = await state.supabase.from("profiles").update(toSupabaseProfile(record)).eq("id", record.id);
-      if (error) throw error;
-      return record.id;
-    }
-  }
-
   return requestToPromise(tx(storeName, "readwrite").put(record));
 }
 
 async function getRecord(storeName, id) {
-  if (isSupabaseEnabled()) {
-    if (storeName === "Routine") {
-      if (!isUuid(id)) return null;
-      const { data, error } = await state.supabase.from("routines").select("*").eq("id", id).single();
-      if (error) throw error;
-      return fromSupabaseRoutine(data);
-    }
-
-    if (storeName === "Session") {
-      if (!isUuid(id)) return null;
-      const { data, error } = await state.supabase.from("sessions").select("*").eq("id", id).single();
-      if (error) throw error;
-      return fromSupabaseSession(data);
-    }
-
-    if (storeName === "User") {
-      if (!isUuid(id)) return null;
-      const { data, error } = await state.supabase.from("profiles").select("*").eq("id", id).single();
-      if (error) throw error;
-      return fromSupabaseProfile(data);
-    }
-  }
-
   const localKey = Number.isNaN(Number(id)) ? id : Number(id);
   return requestToPromise(tx(storeName).get(localKey));
 }
@@ -568,167 +484,6 @@ async function getOrCreateUser() {
   });
 
   return getRecord("User", id);
-}
-
-async function initSupabase() {
-  if (!window.supabase?.createClient || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
-  const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 2500);
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/routines?select=id&limit=1`, {
-      headers: {
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      signal: controller.signal,
-    });
-    window.clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`Supabase unavailable: ${response.status}`);
-    state.supabase = client;
-  } catch (error) {
-    console.warn("Supabase no disponible, usando modo local.", error);
-    state.supabase = null;
-  }
-}
-
-function isSupabaseEnabled() {
-  return Boolean(state.supabase);
-}
-
-async function getStoredProfile() {
-  let stored = null;
-  try {
-    stored = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "null");
-  } catch (error) {
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
-    return null;
-  }
-
-  if (!stored?.id) return null;
-
-  try {
-    return await getRecord("User", stored.id);
-  } catch (error) {
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
-    return null;
-  }
-}
-
-async function handleAliasLogin(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const alias = normalizeAlias(form.alias.value);
-  const pin = form.pin.value.trim();
-  const message = form.querySelector("[data-auth-message]");
-
-  if (!alias || !isValidPin(pin)) {
-    message.textContent = "Usá un alias y un PIN de al menos 4 números.";
-    return;
-  }
-
-  form.querySelector("button[type='submit']").disabled = true;
-  message.textContent = "Entrando...";
-
-  try {
-    const pin_hash = await hashPin(alias, pin);
-    const { data: existing, error } = await state.supabase.from("profiles").select("*").eq("alias", alias).maybeSingle();
-    if (error) throw error;
-
-    if (existing && existing.pin_hash !== pin_hash) {
-      message.textContent = "Ese alias existe, pero el PIN no coincide.";
-      form.querySelector("button[type='submit']").disabled = false;
-      return;
-    }
-
-    const profile = existing ? fromSupabaseProfile(existing) : await createRemoteProfile(alias, pin_hash);
-    state.user = profile;
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ id: profile.id, alias: profile.alias }));
-    navigate("moods");
-  } catch (error) {
-    message.textContent = "No pude entrar. Probá de nuevo en un momento.";
-    form.querySelector("button[type='submit']").disabled = false;
-  }
-}
-
-async function createRemoteProfile(alias, pin_hash) {
-  const { data, error } = await state.supabase.from("profiles").insert({ alias, pin_hash }).select().single();
-  if (error) throw error;
-  return fromSupabaseProfile(data);
-}
-
-function logoutProfile() {
-  localStorage.removeItem(PROFILE_STORAGE_KEY);
-  state.user = null;
-  navigate("auth");
-}
-
-function normalizeAlias(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9_]/g, "");
-}
-
-function isValidPin(value) {
-  return /^\d{4,}$/.test(value);
-}
-
-function isUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value));
-}
-
-async function hashPin(alias, pin) {
-  const data = new TextEncoder().encode(`${alias}:${pin}:respiracion-yogui-v0`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function fromSupabaseProfile(profile) {
-  return {
-    id: profile.id,
-    name: profile.alias,
-    alias: profile.alias,
-    pin_hash: profile.pin_hash,
-    created_at: profile.created_at,
-  };
-}
-
-function toSupabaseProfile(profile) {
-  return {
-    alias: profile.alias || profile.name,
-    pin_hash: profile.pin_hash,
-  };
-}
-
-function fromSupabaseRoutine(routine) {
-  return { ...routine };
-}
-
-function fromSupabaseSession(session) {
-  return {
-    id: session.id,
-    user: session.user_id,
-    routine: session.routine_id,
-    mood_before: session.mood_before,
-    mood_after: session.mood_after || "",
-    date: session.date,
-    completed: session.completed,
-  };
-}
-
-function toSupabaseSession(session) {
-  return {
-    user_id: session.user,
-    routine_id: session.routine,
-    mood_before: session.mood_before,
-    mood_after: session.mood_after || null,
-    date: session.date,
-    completed: session.completed,
-  };
 }
 
 function navigate(route) {
@@ -831,10 +586,7 @@ async function renderRoute() {
   stopSessionTimers({ keepAudio: keepRoutineAudio });
   stopPostureTimers();
 
-  if (route === "auth") {
-    if (isSupabaseEnabled()) await renderAuthPage();
-    else navigate("moods");
-  } else if (isSupabaseEnabled() && !state.user && route !== "welcome") await renderAuthPage();
+  if (route === "auth") return navigate("moods");
   else if (route === "moods") await renderMoodPage();
   else if (route.startsWith("routine/")) await renderRoutinePage(route.split("/")[1]);
   else if (route.startsWith("session/")) await renderSessionPage(route.split("/")[1]);
@@ -864,47 +616,18 @@ function renderWelcomePage() {
         Elige cómo te sientes y recibe una rutina de respiración para tu pausa diaria.
       </p>
       <div class="actions">
-        <button class="button" type="button" data-route="${isSupabaseEnabled() && !state.user ? "auth" : "moods"}">Comenzar</button>
+        <button class="button" type="button" data-route="moods">Comenzar</button>
       </div>
     </section>
   `;
   bindRoutes();
 }
 
-function renderAuthPage() {
-  app.className = "app-shell";
-  app.innerHTML = `
-    <section class="screen panel">
-      ${brandBar("welcome")}
-      <p class="eyebrow">Pausa consciente</p>
-      <h2>Entrá con tu alias</h2>
-      <p class="lead">Al ingresar por primera vez: ingresar tu usuario y pin preferidos, luego entrar con el mismo usuario y pin para recuperar tus sesiones en cualquier dispositivo.</p>
-      <form class="auth-form" data-auth-form novalidate>
-        <label>
-          <span>Usuario</span>
-          <input name="alias" type="text" autocomplete="username" placeholder="Ingresar usuario" required />
-        </label>
-        <label>
-          <span>PIN</span>
-          <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,}" autocomplete="current-password" minlength="4" placeholder="Ingresar PIN" required />
-        </label>
-        <p class="auth-message" data-auth-message role="alert" aria-atomic="true"></p>
-        <div class="actions">
-          <button class="button" type="submit">Entrar</button>
-        </div>
-      </form>
-    </section>
-  `;
-
-  bindRoutes();
-  document.querySelector("[data-auth-form]").addEventListener("submit", handleAliasLogin);
-}
-
 function renderMoodPage() {
   app.className = "app-shell";
   app.innerHTML = `
     <section class="screen screen-wide panel">
-      ${brandBar("auth")}
+      ${brandBar("welcome")}
       <h2>¿Cómo te sientes ahora?</h2>
       <div class="mood-grid">
         ${MOODS.map(
@@ -1146,9 +869,7 @@ function brandBar(backRoute) {
     <div class="topbar">
       <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
       <div class="topbar-actions">
-        ${state.user?.alias ? `<span class="user-chip">${state.user.alias}</span>` : ""}
-        ${state.user?.alias ? `<button class="button button-secondary" type="button" data-logout>Cambiar usuario</button>` : ""}
-        ${backRoute && backRoute !== "auth" ? `<button class="button button-secondary" type="button" data-route="${backRoute}">Volver</button>` : ""}
+        ${backRoute ? `<button class="button button-secondary" type="button" data-route="${backRoute}">Volver</button>` : ""}
       </div>
     </div>
   `;
@@ -1157,9 +878,6 @@ function brandBar(backRoute) {
 function bindRoutes() {
   document.querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
-  });
-  document.querySelectorAll("[data-logout]").forEach((button) => {
-    button.addEventListener("click", logoutProfile);
   });
 }
 
