@@ -1049,7 +1049,7 @@ function runPhase(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${phaseDurationMs}ms`);
   circle.style.setProperty("--breath-scale", String(phase.scale));
   circle.style.transitionTimingFunction = phase.easing;
-  if (!state.session.endingWarned && !isGuideAudioActive("breathing")) speakInstruction(phase.label);
+  if (!state.session.endingWarned && !hasGuideAudio("breathing", state.routine?.mood)) speakInstruction(phase.label);
 
   state.session.phaseTimeoutId = window.setTimeout(() => {
     state.session.currentPhaseIndex += 1;
@@ -1083,7 +1083,7 @@ function runBreathingPrimer(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
   circle.style.setProperty("--breath-scale", "0.82");
   circle.style.transitionTimingFunction = "ease-in-out";
-  const isPrimerSpoken = isGuideAudioActive("breathing") || speakBreathingPrimer(completePrimer);
+  const isPrimerSpoken = hasGuideAudio("breathing", state.routine?.mood) || speakBreathingPrimer(completePrimer);
 
   state.session.phaseTimeoutId = window.setTimeout(completePrimer, isPrimerSpoken ? primerDurationMs : 4000);
 }
@@ -1123,7 +1123,7 @@ function prepareSessionEnding() {
   const instruction = document.querySelector("[data-instruction]");
   if (instruction) instruction.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.12), 5);
-  if (!isGuideAudioActive("breathing")) speakClosingNotice();
+  if (!hasGuideAudio("breathing", state.routine?.mood)) speakClosingNotice();
 }
 
 async function finishSession(sessionId, completed, options = {}) {
@@ -1226,7 +1226,7 @@ function renderPosturePose(routine) {
   if (step) step.textContent = `${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
 
   if (
-    !isGuideAudioActive("postures") &&
+    !hasGuideAudio("postures", state.routine?.mood) &&
     !state.posture.paused &&
     state.posture.lastSpokenIndex !== state.posture.currentPoseIndex
   ) {
@@ -1247,7 +1247,7 @@ function preparePostureEnding() {
   if (movement) movement.textContent = "Dejá que el cuerpo vuelva a la quietud y acompañá el cierre con una respiración suave.";
   if (step) step.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
-  if (!isGuideAudioActive("postures")) speakPostureClosingNotice();
+  if (!hasGuideAudio("postures", state.routine?.mood)) speakPostureClosingNotice();
 }
 
 function renderPostureTimer() {
@@ -1268,9 +1268,11 @@ function togglePosturePause() {
   }
 
   if (state.posture.endingWarned) {
-    if (!isGuideAudioActive("postures")) speakPostureClosingNotice();
+    if (!hasGuideAudio("postures", state.routine?.mood)) speakPostureClosingNotice();
     return;
   }
+
+  if (hasGuideAudio("postures", state.routine?.mood)) return;
 
   const routine = postureRoutineFor(state.routine?.mood);
   const pose = routine.poses[state.posture.currentPoseIndex] || routine.poses[0];
@@ -1346,7 +1348,7 @@ async function toggleAudio() {
     await unlockAudio();
     if (state.audio.unlocked && state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel && !isGuideAudioActive("breathing")) {
+      if (state.session.currentPhaseLabel && !hasGuideAudio("breathing", state.routine?.mood)) {
         speakInstruction(state.session.currentPhaseLabel);
       }
     }
@@ -1360,7 +1362,7 @@ async function toggleAudio() {
     await unlockAudio();
     if (state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel && !isGuideAudioActive("breathing")) {
+      if (state.session.currentPhaseLabel && !hasGuideAudio("breathing", state.routine?.mood)) {
         speakInstruction(state.session.currentPhaseLabel);
       }
     }
@@ -1500,6 +1502,10 @@ function startGuideAudio(type, mood) {
     stopGuideAudio();
     return false;
   }
+}
+
+function hasGuideAudio(type, mood) {
+  return Boolean(GUIDE_AUDIO[type]?.[mood]);
 }
 
 function isGuideAudioActive(type) {
