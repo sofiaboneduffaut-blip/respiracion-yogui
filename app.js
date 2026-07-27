@@ -168,9 +168,11 @@ const MUSIC_THEMES = {
 const GUIDE_AUDIO = {
   breathing: {
     anxious: "assets/audio/ansiedad-calma-lunar.m4a",
+    stressed: "assets/audio/estres-hombros-suaves.m4a",
   },
   postures: {
     anxious: "assets/audio/ansiedad-posturas.m4a",
+    stressed: "assets/audio/estres-posturas.m4a",
   },
 };
 
