@@ -3,9 +3,7 @@ const DB_VERSION = 1;
 const TRACK_VOLUME = 0.34;
 const POSTURE_MUSIC_VOLUME = 0.18;
 const RAIN_VOLUME = 0.08;
-const VOICE_RATE = 0.74;
-const VOICE_PITCH = 1.08;
-const VOICE_VOLUME = 0.38;
+const GUIDE_VOLUME = 0.38;
 const POSTURE_DURATION_SECONDS = 5 * 60;
 const BREATHING_PRIMER_SECONDS = 45;
 
@@ -276,38 +274,24 @@ const POSTURE_ROUTINES = {
 const POSTURE_GUIDES = {
   seated: {
     movement: "Paso a paso: pies apoyados, manos sobre muslos, columna larga y exhalación suave.",
-    voice:
-      "Nos sentamos en la silla con los dos pies apoyados en el piso. Luego apoyamos las manos sobre los muslos. Inhalando, alargar la columna como si crecieras desde el coxis hacia la coronilla. Exhalando, relajar hombros, mandíbula y abdomen. Repetí dos respiraciones más, suave.",
   },
   "arms-up": {
     movement: "Paso a paso: inhalá y subí brazos; exhalá y bajalos despacio, con cuello relajado.",
-    voice:
-      "Continuamos en la silla, relajar los hombros y apoyar bien los pies. Inhalando, debemos subir los dos brazos por los costados hasta donde sea cómodo. Exhalando, bajamos brazos despacio. Inhalando elevamos los brazos. Exhalando, se bajan brazos otra vez, manteniendo cuello y mandíbula relajados.",
   },
   twist: {
     movement: "Paso a paso: inhalá subiendo un brazo, exhalá en torsión, respiramos y cambiamos de lado.",
-    voice:
-      "Sentada con la espalda larga y brazos al costado de la silla, vamos a comenzar a inhalar subiendo brazo derecho, manteniendo cuello y cabeza en línea y al exhalar, giramos suavemente hacia la izquierda desde el abdomen llevando el brazo derecho al lado contrario en una pequeña torsión. Hacemos dos respiraciones desde el abdomen. Inhalando, volvemos al centro. Ahora al comenzar a inhalar subiendo brazo izquierdo, manteniendo cuello y cabeza en línea y al exhalar, giramos suavemente hacia la derecha desde el abdomen llevando el brazo izquierdo al lado contrario en una pequeña torsión. Hacemos dos respiraciones desde el abdomen. Inhalando, volvemos al centro.",
   },
   "forward-fold": {
     movement: "Paso a paso: alargá espalda, exhalá bajando el torso y volvé vértebra por vértebra.",
-    voice:
-      "Desde la silla, separá un poco los pies y apoyá bien las plantas. Inhalando, alargá la espalda. Exhalando, dejá que el torso baje hacia las piernas, sin forzar y manteniendo la columna derecha. Soltar cabeza, cuello y hombros. Inhalando, sentí la espalda amplia. Exhalando, entregá un poco más de peso. Para volver lo hacemos exhalando con columna curva, vértebra a vértebra y lo último que sube es la cabeza.",
   },
   "side-stretch": {
     movement: "Paso a paso: brazo derecho arriba e inclinación izquierda; después brazo izquierdo y derecha.",
-    voice:
-      "Sentada en la silla, relajar hombros y apoyar los pies. Inhalando, levantá el brazo derecho. Exhalando, inclinate suavemente hacia la izquierda, abriendo el costado derecho. Inhalando, volvé al centro. Exhalando, bajá el brazo derecho. Inhalando, subí el brazo izquierdo. Exhalando, inclinate hacia la derecha. Volvé despacio al centro.",
   },
   "heart-opener": {
     movement: "Paso a paso: tomá la silla, abrí el pecho al inhalar y aflojá al exhalar.",
-    voice:
-      "Sentada, tomá el respaldo o los bordes de la silla con suavidad. Inhalando, abrí el pecho y llevá los hombros un poquito hacia atrás. Exhalando, aflojá las costillas y el abdomen. No empujes la cintura. Dejá que la apertura nazca del pecho y de las clavículas.",
   },
   shoulders: {
     movement: "Paso a paso: hombros arriba al inhalar; atrás y abajo al exhalar.",
-    voice:
-      "Sentada en la silla, dejá los brazos relajados. Inhalando, llevá los hombros hacia arriba. Exhalando, mandalos hacia atrás y hacia abajo. Repetí lento: inhalan y suben, exhalan y bajan. Mantené cuello, manos y cara relajados.",
   },
 };
 
@@ -352,12 +336,11 @@ const state = {
     intervalId: null,
     remainingSeconds: 0,
     currentPoseIndex: 0,
-    lastSpokenIndex: -1,
   },
   audio: {
     context: null,
     unlocked: false,
-    voiceEnabled: true,
+    guideEnabled: true,
     musicEnabled: true,
     musicGain: null,
     musicElement: null,
@@ -367,7 +350,6 @@ const state = {
     routineId: null,
     guideElement: null,
     guideKey: null,
-    spanishVoice: null,
   },
 };
 
@@ -537,7 +519,6 @@ function initPersistentAudioHandling() {
   ["visibilitychange", "pageshow", "focus", "resume"].forEach((eventName) => {
     window.addEventListener(eventName, keepAudioAlive);
   });
-  window.setInterval(keepVoiceAlive, 7000);
 
   if ("mediaSession" in navigator) {
     try {
@@ -558,7 +539,6 @@ async function keepAudioAlive() {
   const shouldPlaySession = state.session.running && !state.session.paused;
   const shouldPlayPosture = state.posture.running && !state.posture.paused;
   if (!shouldPlaySession && !shouldPlayPosture) return;
-  keepVoiceAlive();
 
   if (state.audio.guideElement?.paused && !state.audio.guideElement.ended) {
     state.audio.guideElement.play().catch(() => {});
@@ -576,19 +556,6 @@ async function keepAudioAlive() {
     state.audio.musicElement.play().catch(() => {});
   } else if (!state.audio.musicElement) {
     startRoutineAudio(state.routine);
-  }
-}
-
-function keepVoiceAlive() {
-  if (!state.audio.voiceEnabled || !("speechSynthesis" in window)) return;
-  const shouldSpeakSession = state.session.running && !state.session.paused;
-  const shouldSpeakPosture = state.posture.running && !state.posture.paused;
-  if (!shouldSpeakSession && !shouldSpeakPosture) return;
-
-  try {
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-  } catch (error) {
-    // Some mobile browsers do not allow speech control while backgrounded.
   }
 }
 
@@ -1057,7 +1024,6 @@ function runPhase(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${phaseDurationMs}ms`);
   circle.style.setProperty("--breath-scale", String(phase.scale));
   circle.style.transitionTimingFunction = phase.easing;
-  if (!state.session.endingWarned && !hasGuideAudio("breathing", state.routine?.mood)) speakInstruction(phase.label);
 
   state.session.phaseTimeoutId = window.setTimeout(() => {
     state.session.currentPhaseIndex += 1;
@@ -1091,9 +1057,7 @@ function runBreathingPrimer(durationOverrideMs) {
   circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
   circle.style.setProperty("--breath-scale", "0.82");
   circle.style.transitionTimingFunction = "ease-in-out";
-  const isPrimerSpoken = hasGuideAudio("breathing", state.routine?.mood) || speakBreathingPrimer(completePrimer);
-
-  state.session.phaseTimeoutId = window.setTimeout(completePrimer, isPrimerSpoken ? primerDurationMs : 4000);
+  state.session.phaseTimeoutId = window.setTimeout(completePrimer, primerDurationMs);
 }
 
 function togglePause() {
@@ -1113,7 +1077,6 @@ function togglePause() {
     if (circle) circle.style.transitionDuration = "0ms";
     pauseRoutineAudio(true);
     pauseGuideAudio(true);
-    stopVoice();
     return;
   }
 
@@ -1131,7 +1094,6 @@ function prepareSessionEnding() {
   const instruction = document.querySelector("[data-instruction]");
   if (instruction) instruction.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.12), 5);
-  if (!hasGuideAudio("breathing", state.routine?.mood)) speakClosingNotice();
 }
 
 async function finishSession(sessionId, completed, options = {}) {
@@ -1149,7 +1111,6 @@ async function finishSession(sessionId, completed, options = {}) {
     await wait(500);
   }
 
-  stopVoice();
   stopGuideAudio();
   state.session.running = false;
   const session = await getRecord("Session", sessionId);
@@ -1165,7 +1126,6 @@ async function finishSession(sessionId, completed, options = {}) {
 function stopSessionTimers(options = {}) {
   window.clearInterval(state.session.intervalId);
   window.clearTimeout(state.session.phaseTimeoutId);
-  stopVoice();
   stopGuideAudio();
   if (!options.keepAudio) stopRoutineAudio();
   state.session.running = false;
@@ -1179,7 +1139,6 @@ function startPostureSession(routine, sessionId) {
     intervalId: null,
     remainingSeconds: POSTURE_DURATION_SECONDS,
     currentPoseIndex: 0,
-    lastSpokenIndex: -1,
     endingWarned: false,
     finishing: false,
   };
@@ -1232,15 +1191,6 @@ function renderPosturePose(routine) {
   if (cue) cue.textContent = pose.cue;
   if (movement) movement.textContent = guide.movement;
   if (step) step.textContent = `${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
-
-  if (
-    !hasGuideAudio("postures", state.routine?.mood) &&
-    !state.posture.paused &&
-    state.posture.lastSpokenIndex !== state.posture.currentPoseIndex
-  ) {
-    state.posture.lastSpokenIndex = state.posture.currentPoseIndex;
-    speakPostureCue(pose);
-  }
 }
 
 function preparePostureEnding() {
@@ -1255,7 +1205,6 @@ function preparePostureEnding() {
   if (movement) movement.textContent = "Dejá que el cuerpo vuelva a la quietud y acompañá el cierre con una respiración suave.";
   if (step) step.textContent = "Cerrando";
   fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
-  if (!hasGuideAudio("postures", state.routine?.mood)) speakPostureClosingNotice();
 }
 
 function renderPostureTimer() {
@@ -1269,29 +1218,12 @@ function togglePosturePause() {
   if (button) button.textContent = state.posture.paused ? "Continuar" : "Pausar";
   pauseRoutineAudio(state.posture.paused, POSTURE_MUSIC_VOLUME);
   pauseGuideAudio(state.posture.paused);
-
-  if (state.posture.paused) {
-    stopVoice();
-    return;
-  }
-
-  if (state.posture.endingWarned) {
-    if (!hasGuideAudio("postures", state.routine?.mood)) speakPostureClosingNotice();
-    return;
-  }
-
-  if (hasGuideAudio("postures", state.routine?.mood)) return;
-
-  const routine = postureRoutineFor(state.routine?.mood);
-  const pose = routine.poses[state.posture.currentPoseIndex] || routine.poses[0];
-  speakPostureCue(pose);
 }
 
 async function finishPostureSession(sessionId) {
   if (!state.posture.running || state.posture.finishing) return;
   state.posture.finishing = true;
   stopPostureTimers();
-  stopVoice();
   stopGuideAudio();
   fadeRoutineAudioTo(0.0001, 1.4);
   await wait(900);
@@ -1328,7 +1260,7 @@ function postureGuideFor(pose) {
 }
 
 function isAudioEnabled() {
-  return state.audio.voiceEnabled || state.audio.musicEnabled;
+  return state.audio.guideEnabled || state.audio.musicEnabled;
 }
 
 function audioButtonLabel() {
@@ -1356,39 +1288,30 @@ async function toggleAudio() {
     await unlockAudio();
     if (state.audio.unlocked && state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel && !hasGuideAudio("breathing", state.routine?.mood)) {
-        speakInstruction(state.session.currentPhaseLabel);
-      }
     }
     syncAudioUi();
     return;
   }
 
   if (!isAudioEnabled()) {
-    state.audio.voiceEnabled = true;
+    state.audio.guideEnabled = true;
     state.audio.musicEnabled = true;
     await unlockAudio();
     if (state.session.running && !state.session.paused && state.routine) {
       startRoutineAudio(state.routine);
-      if (state.session.currentPhaseLabel && !hasGuideAudio("breathing", state.routine?.mood)) {
-        speakInstruction(state.session.currentPhaseLabel);
-      }
     }
     syncAudioUi();
     return;
   }
 
-  state.audio.voiceEnabled = false;
+  state.audio.guideEnabled = false;
   state.audio.musicEnabled = false;
-  stopVoice();
   stopGuideAudio();
   stopRoutineAudio();
   syncAudioUi();
 }
 
 async function unlockAudio() {
-  initSpeechVoice();
-
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) {
     state.audio.unlocked = "Audio" in window;
@@ -1473,7 +1396,7 @@ async function startRoutineAudio(routine) {
 }
 
 function startGuideAudio(type, mood) {
-  if (!state.audio.voiceEnabled) return false;
+  if (!state.audio.guideEnabled) return false;
 
   const file = GUIDE_AUDIO[type]?.[mood];
   if (!file) return false;
@@ -1485,12 +1408,11 @@ function startGuideAudio(type, mood) {
   }
 
   stopGuideAudio();
-  stopVoice();
 
   const guideElement = new Audio(file);
   guideElement.preload = "auto";
   guideElement.crossOrigin = "anonymous";
-  guideElement.volume = VOICE_VOLUME;
+  guideElement.volume = GUIDE_VOLUME;
   guideElement.playsInline = true;
   state.audio.guideElement = guideElement;
   state.audio.guideKey = guideKey;
@@ -1510,18 +1432,6 @@ function startGuideAudio(type, mood) {
     stopGuideAudio();
     return false;
   }
-}
-
-function hasGuideAudio(type, mood) {
-  return Boolean(GUIDE_AUDIO[type]?.[mood]);
-}
-
-function isGuideAudioActive(type) {
-  return Boolean(
-    state.audio.guideElement &&
-      state.audio.guideKey?.startsWith(`${type}:`) &&
-      !state.audio.guideElement.ended,
-  );
 }
 
 function pauseGuideAudio(paused) {
@@ -1710,156 +1620,6 @@ function createRainNoiseBuffer(context, smoothing) {
   }
 
   return buffer;
-}
-
-function initSpeechVoice() {
-  if (!("speechSynthesis" in window)) return;
-
-  const assignVoice = () => {
-    const voices = window.speechSynthesis.getVoices();
-    state.audio.spanishVoice = chooseLatinFemaleVoice(voices);
-  };
-
-  assignVoice();
-  window.speechSynthesis.onvoiceschanged = assignVoice;
-}
-
-function chooseLatinFemaleVoice(voices) {
-  const latinLocales = [
-    "es-419",
-    "es-us",
-    "es-mx",
-    "es-ar",
-    "es-cl",
-    "es-co",
-    "es-pe",
-    "es-uy",
-    "es-ve",
-    "es-bo",
-    "es-cr",
-    "es-do",
-    "es-ec",
-    "es-gt",
-    "es-hn",
-    "es-ni",
-    "es-pa",
-    "es-pr",
-    "es-py",
-    "es-sv",
-  ];
-
-  const scoredVoices = voices
-    .filter((voice) => voice.lang.toLowerCase().startsWith("es"))
-    .map((voice) => {
-      const lang = voice.lang.toLowerCase();
-      const name = voice.name.toLowerCase();
-      let score = 0;
-
-      if (/dalia|paulina|sabina|paloma|soledad|luciana|maria|maría/.test(name)) score += 150;
-      if (/google.*(latino|latinoamericano|américa latina|america latina|mexico|méxico|estados unidos|united states)/.test(name)) {
-        score += 135;
-      }
-      if (/microsoft.*(dalia|sabina|paulina)/.test(name)) score += 135;
-      if (latinLocales.includes(lang)) score += 120;
-      if (/latino|latinoamericano|latin|méxico|mexico|argentina|chile|colombia|perú|peru|uruguay|estados unidos|united states|us spanish/.test(name)) {
-        score += 95;
-      }
-      if (/female|mujer|woman/.test(name)) score += 40;
-      if (voice.localService) score += 8;
-      if (/monica|mónica|helena|laura/.test(name)) score -= 120;
-      if (lang === "es-es" || /españa|spain|castilian|castellano/.test(name)) score -= 260;
-
-      return { voice, score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return scoredVoices[0]?.voice || null;
-}
-
-function speakInstruction(label) {
-  if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return;
-
-  const spokenLabels = {
-    Inhala: "Inhala lento",
-    Sostén: "Sostén",
-    Exhala: "Exhala lento",
-    Pausa: "Pausa",
-  };
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(spokenLabels[label] || label);
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
-  window.speechSynthesis.speak(utterance);
-}
-
-function speakBreathingPrimer(onComplete) {
-  if (!state.audio.voiceEnabled || state.session.paused || !("speechSynthesis" in window)) return false;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(
-    "Antes de empezar tu rutina, recordá respirar por la nariz de forma lenta y profunda. Al inhalar, dejá que suba primero el abdomen, después el tórax y por último las clavículas. Al exhalar, dejá que bajen las clavículas, el tórax y el abdomen.",
-  );
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
-  utterance.onend = () => {
-    window.setTimeout(() => onComplete?.(), 900);
-  };
-  utterance.onerror = () => {
-    window.setTimeout(() => onComplete?.(), 900);
-  };
-  window.speechSynthesis.speak(utterance);
-  return true;
-}
-
-function speakClosingNotice() {
-  if (!state.audio.voiceEnabled || !("speechSynthesis" in window)) return;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance("Tu respiración está por terminar");
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
-  window.speechSynthesis.speak(utterance);
-}
-
-function speakPostureClosingNotice() {
-  if (!state.audio.voiceEnabled || state.posture.paused || !("speechSynthesis" in window)) return;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance("Tu rutina de posturas está por terminar");
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
-  window.speechSynthesis.speak(utterance);
-}
-
-function speakPostureCue(pose) {
-  if (!state.audio.voiceEnabled || state.posture.paused || !("speechSynthesis" in window)) return;
-
-  const guide = postureGuideFor(pose);
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(`Ahora, ${pose.name}. ${guide.voice}`);
-  utterance.lang = state.audio.spanishVoice?.lang || "es-MX";
-  utterance.rate = VOICE_RATE;
-  utterance.pitch = VOICE_PITCH;
-  utterance.volume = VOICE_VOLUME;
-  if (state.audio.spanishVoice) utterance.voice = state.audio.spanishVoice;
-  window.speechSynthesis.speak(utterance);
-}
-
-function stopVoice() {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
 function wait(milliseconds) {
