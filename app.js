@@ -8,6 +8,27 @@ const BREATHING_DURATION_SECONDS = 5 * 60;
 const POSTURE_DURATION_SECONDS = 5 * 60;
 const BREATHING_PRIMER_SECONDS = 45;
 
+const MODALITIES = [
+  {
+    id: "breathing",
+    label: "Respirar",
+    duration: 5,
+    description: "Una guía de respiración para bajar el ritmo y volver al presente.",
+  },
+  {
+    id: "movement",
+    label: "Moverme",
+    duration: 5,
+    description: "Movimientos suaves en una silla para aflojar el cuerpo.",
+  },
+  {
+    id: "complete",
+    label: "Pausa completa",
+    duration: 10,
+    description: "Cinco minutos de respiración y cinco de movimiento.",
+  },
+];
+
 const MOODS = [
   {
     id: "anxious",
@@ -311,6 +332,7 @@ const state = {
   db: null,
   user: null,
   mood: null,
+  modality: readLocalPreference("modality"),
   routine: null,
   sessionId: null,
   sessionOptions: new Map(),
@@ -573,12 +595,15 @@ async function renderRoute() {
   stopSessionTimers({ keepAudio: keepRoutineAudio });
   stopPostureTimers();
 
-  if (route === "auth") return navigate("moods");
+  if (route === "auth") return navigate("modalities");
+  else if (route === "modalities") renderModalityPage();
   else if (route === "moods") await renderMoodPage();
   else if (route.startsWith("routine/")) await renderRoutinePage(route.split("/")[1]);
   else if (route.startsWith("session/")) await renderSessionPage(route.split("/")[1]);
   else if (route.startsWith("postures/")) await renderPosturePage(route.split("/")[1]);
   else if (route.startsWith("feedback/")) await renderFeedbackPage(route.split("/")[1]);
+  else if (route === "privacy") renderPrivacyPage();
+  else if (route === "safety") renderSafetyPage();
   else renderWelcomePage();
 
   focusPrimaryHeading();
@@ -595,37 +620,82 @@ function renderRouteSafely() {
 function renderWelcomePage() {
   app.className = "app-shell";
   app.innerHTML = `
-    <section class="screen panel">
+    <section class="screen panel welcome-panel">
       ${brandBar()}
-      <p class="eyebrow">Pausa consciente</p>
+      <p class="eyebrow">Pausa consciente en tu jornada</p>
       <h1>Respiración Yogui</h1>
-      <p class="lead">
-        Elige cómo te sientes y recibe una rutina de respiración para tu pausa diaria.
+      <p class="lead lead-prominent">
+        Pausas guiadas para respirar y mover el cuerpo desde tu escritorio.
       </p>
-      <div class="actions">
-        <button class="button" type="button" data-route="moods">Comenzar</button>
+      <p class="welcome-benefit">
+        En 5 o 10 minutos podés interrumpir un período largo sentado y sumar movimiento suave a tu día.
+        <a href="https://www.who.int/news-room/fact-sheets/detail/physical-activity" target="_blank" rel="noreferrer">Basado en recomendaciones de la OMS</a>.
+      </p>
+      <div class="actions welcome-actions">
+        <button class="button" type="button" data-route="modalities">Elegir mi pausa</button>
       </div>
+      <p class="local-note">Sin cuenta. Tus prácticas quedan guardadas solamente en este dispositivo.</p>
+      ${appFooter()}
     </section>
   `;
   bindRoutes();
 }
 
-function renderMoodPage() {
+function renderModalityPage() {
   app.className = "app-shell";
   app.innerHTML = `
     <section class="screen screen-wide panel">
       ${brandBar("welcome")}
+      <p class="step-label">Paso 1 de 3</p>
+      <h2>¿Qué necesitás ahora?</h2>
+      <p class="lead">Elegí el tipo de pausa. Todas se hacen desde una silla y con tu propia amplitud.</p>
+      <div class="choice-grid modality-grid">
+        ${MODALITIES.map(
+          (modality) => `
+            <button class="choice-card" type="button" data-modality="${modality.id}" aria-pressed="${String(state.modality === modality.id)}">
+              <span class="choice-duration">${modality.duration} min</span>
+              <strong>${modality.label}</strong>
+              <span>${modality.description}</span>
+            </button>
+          `,
+        ).join("")}
+      </div>
+      ${appFooter()}
+    </section>
+  `;
+
+  bindRoutes();
+  document.querySelectorAll("[data-modality]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-modality]").forEach((item) => item.setAttribute("aria-pressed", "false"));
+      button.setAttribute("aria-pressed", "true");
+      state.modality = button.dataset.modality;
+      writeLocalPreference("modality", state.modality);
+      navigate("moods");
+    });
+  });
+}
+
+function renderMoodPage() {
+  if (!modalityFor(state.modality)) return navigate("modalities");
+  app.className = "app-shell";
+  app.innerHTML = `
+    <section class="screen screen-wide panel">
+      ${brandBar("modalities")}
+      <p class="step-label">Paso 2 de 3 · ${modalityFor(state.modality).label}</p>
       <h2>¿Cómo te sientes ahora?</h2>
+      <p class="lead">Elegí la opción que más se acerque a este momento.</p>
       <div class="mood-grid">
         ${MOODS.map(
           (mood) => `
-            <button class="mood-card" type="button" data-mood="${mood.id}" aria-pressed="false">
+            <button class="mood-card" type="button" data-mood="${mood.id}" aria-pressed="${String(state.mood === mood.id)}">
               <h3>${mood.label}</h3>
               <span>${mood.hint}</span>
             </button>
           `,
         ).join("")}
       </div>
+      ${appFooter()}
     </section>
   `;
 
@@ -642,6 +712,9 @@ async function renderRoutinePage(routineId) {
   const routine = await safeGetRecord("Routine", routineId);
   if (!routine) return navigate("moods");
 
+  const modality = modalityFor(state.modality) || MODALITIES[2];
+  state.modality = modality.id;
+
   state.routine = routine;
   state.mood = routine.mood;
 
@@ -649,71 +722,61 @@ async function renderRoutinePage(routineId) {
   app.innerHTML = `
     <section class="screen screen-wide panel">
       ${brandBar("moods")}
-      <p class="eyebrow">Rutina recomendada</p>
+      <p class="step-label">Paso 3 de 3 · Tu recomendación</p>
       <h2>${routine.name}</h2>
-      <p class="lead">${routine.description}</p>
-      <div class="routine-layout">
-        <div class="routine-visual" aria-hidden="true">
-          <div class="lotus"><span></span></div>
+      <div class="recommendation-summary">
+        <div>
+          <span class="summary-label">Objetivo</span>
+          <strong>${sentenceCase(routine.objective)}</strong>
         </div>
-        <dl class="detail-list">
-          <div class="detail">
-            <dt>Respiración</dt>
-            <dd>5 minutos</dd>
-          </div>
-          <div class="detail">
-            <dt>Posturas</dt>
-            <dd>5 minutos</dd>
-          </div>
-          <div class="detail">
-            <dt>Duración total</dt>
-            <dd>10 minutos</dd>
-          </div>
-          <div class="detail">
-            <dt>Patrón</dt>
-            <dd>${patternLabel(routine)}</dd>
-          </div>
-          <div class="detail">
-            <dt>Objetivo</dt>
-            <dd>${sentenceCase(routine.objective)}</dd>
-          </div>
-          <div class="detail">
-            <dt>Música</dt>
-            <dd>${musicThemeFor(routine).name}</dd>
-          </div>
-        </dl>
+        <div>
+          <span class="summary-label">Modalidad</span>
+          <strong>${modality.label} · ${modality.duration} min</strong>
+        </div>
       </div>
-      <div class="actions">
-        <button class="button" type="button" data-start-session="${routine.id}">Iniciar rutina de 10 min</button>
-        <button class="button button-secondary" type="button" data-start-breathing-only="${routine.id}">Solo respiración · 5 min</button>
+      <p class="lead recommendation-copy">${recommendationDescription(routine, modality)}</p>
+      <div class="actions recommendation-actions">
+        <button class="button" type="button" data-start-selected="${routine.id}">${startActionLabel(modality)} · ${modality.duration} min</button>
         <button class="button button-secondary" type="button" data-route="moods">Cambiar estado</button>
+        <button class="button button-secondary" type="button" data-route="modalities">Cambiar modalidad</button>
       </div>
+      <details class="routine-details">
+        <summary>Ver detalles de la rutina</summary>
+        <dl class="detail-list">
+          ${modality.id !== "movement" ? `<div class="detail"><dt>Patrón respiratorio</dt><dd>${patternLabel(routine)}</dd></div>` : ""}
+          <div class="detail"><dt>Música</dt><dd>${musicThemeFor(routine).name}</dd></div>
+          <div class="detail"><dt>Duración</dt><dd>${modalityDurationDescription(modality)}</dd></div>
+        </dl>
+      </details>
+      ${appFooter()}
     </section>
   `;
 
   bindRoutes();
-  document.querySelector("[data-start-session]").addEventListener("click", async () => {
-    await startRoutineSession(routine, { skipPostures: false });
-  });
-  document.querySelector("[data-start-breathing-only]").addEventListener("click", async () => {
-    await startRoutineSession(routine, { skipPostures: true });
+  document.querySelector("[data-start-selected]").addEventListener("click", async () => {
+    await startRoutineSession(routine, { modality: modality.id });
   });
 }
 
 async function startRoutineSession(routine, options = {}) {
-    await unlockAudio();
-    const sessionId = await addRecord("Session", {
-      user: state.user.id,
-      routine: routine.id,
-      mood_before: routine.mood,
-      mood_after: "",
-      date: new Date().toISOString(),
-      completed: false,
-      skip_postures: Boolean(options.skipPostures),
-    });
-    state.sessionOptions.set(sessionId, { skipPostures: Boolean(options.skipPostures) });
-    state.sessionId = sessionId;
-    navigate(`session/${sessionId}`);
+  const modality = modalityFor(options.modality) || MODALITIES[2];
+  await unlockAudio();
+  const sessionId = await addRecord("Session", {
+    user: state.user.id,
+    routine: routine.id,
+    mood_before: routine.mood,
+    mood_after: "",
+    modality: modality.id,
+    planned_minutes: modality.duration,
+    completed_parts: [],
+    date: new Date().toISOString(),
+    completed: false,
+    interrupted: false,
+    skip_postures: modality.id === "breathing",
+  });
+  state.sessionOptions.set(sessionId, { modality: modality.id });
+  state.sessionId = sessionId;
+  navigate(modality.id === "movement" ? `postures/${sessionId}` : `session/${sessionId}`);
 }
 
 async function renderSessionPage(sessionId) {
@@ -867,10 +930,112 @@ function brandBar(backRoute) {
   `;
 }
 
+function appFooter() {
+  return `
+    <footer class="app-footer">
+      <button type="button" data-route="safety">Bienestar y seguridad</button>
+      <button type="button" data-route="privacy">Privacidad</button>
+    </footer>
+  `;
+}
+
+function renderPrivacyPage() {
+  app.className = "app-shell";
+  app.innerHTML = `
+    <section class="screen panel information-page">
+      ${brandBar("welcome")}
+      <p class="eyebrow">Privacidad</p>
+      <h2>Tu información queda en tu dispositivo</h2>
+      <p class="lead">Respiración Yogui funciona sin cuenta, anuncios ni herramientas de seguimiento.</p>
+      <div class="information-list">
+        <section>
+          <h3>Qué se guarda</h3>
+          <p>La rutina elegida, cómo te sentías, la modalidad, la duración, las partes completadas y tu respuesta opcional al terminar.</p>
+        </section>
+        <section>
+          <h3>Para qué se usa</h3>
+          <p>Solo para mostrarte un resumen de tus prácticas dentro de esta aplicación.</p>
+        </section>
+        <section>
+          <h3>Dónde queda</h3>
+          <p>Los datos se guardan localmente en este navegador. No se envían a un servidor ni aparecen en la dirección de la página.</p>
+        </section>
+        <section>
+          <h3>Cómo se eliminan</h3>
+          <p>Podés borrarlos desde la configuración del navegador, eliminando los datos del sitio de Respiración Yogui.</p>
+        </section>
+      </div>
+      ${appFooter()}
+    </section>
+  `;
+  bindRoutes();
+}
+
+function renderSafetyPage() {
+  app.className = "app-shell";
+  app.innerHTML = `
+    <section class="screen panel information-page">
+      ${brandBar("welcome")}
+      <p class="eyebrow">Bienestar y seguridad</p>
+      <h2>Practicá sin forzar</h2>
+      <p class="lead">Estas pausas ofrecen orientación general de bienestar y no reemplazan atención profesional.</p>
+      <div class="information-list">
+        <section>
+          <h3>Durante la práctica</h3>
+          <p>Respirá con naturalidad y usá un rango de movimiento cómodo. Detenete si sentís dolor, mareo, dificultad para respirar o un malestar que aumenta.</p>
+        </section>
+        <section>
+          <h3>Cuándo pedir ayuda</h3>
+          <p>Consultá a un profesional calificado si tenés dudas sobre qué movimientos son adecuados para vos. Ante una urgencia, buscá asistencia de emergencia.</p>
+        </section>
+      </div>
+      ${appFooter()}
+    </section>
+  `;
+  bindRoutes();
+}
+
 function bindRoutes() {
   document.querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
   });
+}
+
+function modalityFor(id) {
+  return MODALITIES.find((modality) => modality.id === id);
+}
+
+function recommendationDescription(routine, modality) {
+  if (modality.id === "movement") return `${postureRoutineFor(routine.mood).objective}.`;
+  if (modality.id === "breathing") return routine.description;
+  return `${routine.description} Después, vas a continuar con movimientos suaves en la silla.`;
+}
+
+function modalityDurationDescription(modality) {
+  if (modality.id === "complete") return "5 minutos de respiración + 5 minutos de movimiento";
+  return `${modality.duration} minutos`;
+}
+
+function startActionLabel(modality) {
+  if (modality.id === "movement") return "Iniciar movimiento";
+  if (modality.id === "breathing") return "Iniciar respiración";
+  return "Iniciar pausa completa";
+}
+
+function readLocalPreference(key) {
+  try {
+    return window.localStorage.getItem(`respiracion-yogui:${key}`) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function writeLocalPreference(key, value) {
+  try {
+    window.localStorage.setItem(`respiracion-yogui:${key}`, value);
+  } catch (error) {
+    // La aplicación puede continuar aunque el navegador bloquee preferencias locales.
+  }
 }
 
 function patternLabel(routine) {
