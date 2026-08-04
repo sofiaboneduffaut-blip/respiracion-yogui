@@ -6,7 +6,7 @@ const RAIN_VOLUME = 0.08;
 const GUIDE_VOLUME = 0.38;
 const BREATHING_DURATION_SECONDS = 5 * 60;
 const POSTURE_DURATION_SECONDS = 5 * 60;
-const BREATHING_PRIMER_SECONDS = 45;
+const BREATHING_PRIMER_SECONDS = 12;
 
 const MODALITIES = [
   {
@@ -296,24 +296,45 @@ const POSTURE_ROUTINES = {
 const POSTURE_GUIDES = {
   seated: {
     movement: "Paso a paso: pies apoyados, manos sobre muslos, columna larga y exhalación suave.",
+    alternative: "Si lo necesitás, apoyá la espalda en el respaldo y mantené la columna cómoda.",
+    image: "assets/postures/seated.webp",
+    alt: "Persona sentada de perfil, con ambos pies apoyados, manos sobre los muslos y espalda larga.",
   },
   "arms-up": {
     movement: "Paso a paso: inhalá y subí brazos; exhalá y bajalos despacio, con cuello relajado.",
+    alternative: "Menor amplitud: elevá los brazos solo hasta los hombros o mové uno por vez.",
+    image: "assets/postures/arms-up.webp",
+    alt: "Secuencia sentada que muestra los brazos relajados y luego elevados por los costados.",
   },
   twist: {
     movement: "Paso a paso: inhalá subiendo un brazo, exhalá en torsión, respiramos y cambiamos de lado.",
+    alternative: "Menor amplitud: girá solo unos grados y mantené las manos sobre los muslos.",
+    image: "assets/postures/twist.webp",
+    alt: "Secuencia sentada de torsión suave hacia la izquierda, centro y torsión hacia la derecha.",
   },
   "forward-fold": {
     movement: "Paso a paso: alargá espalda, exhalá bajando el torso y volvé vértebra por vértebra.",
+    alternative: "Menor amplitud: apoyá las manos en los muslos e incliná el torso apenas hacia adelante.",
+    image: "assets/postures/forward-fold.webp",
+    alt: "Secuencia de perfil que muestra la postura sentada erguida y una flexión suave hacia las piernas.",
   },
   "side-stretch": {
     movement: "Paso a paso: brazo derecho arriba e inclinación izquierda; después brazo izquierdo y derecha.",
+    alternative: "Menor amplitud: dejá la mano en la cintura e inclinate solo un poco hacia cada lado.",
+    image: "assets/postures/side-stretch.webp",
+    alt: "Secuencia sentada de inclinación lateral hacia ambos lados con un brazo elevado.",
   },
   "heart-opener": {
     movement: "Paso a paso: tomá la silla, abrí el pecho al inhalar y aflojá al exhalar.",
+    alternative: "Menor amplitud: dejá las manos en los muslos y ensanchá suavemente las clavículas.",
+    image: "assets/postures/heart-opener.webp",
+    alt: "Secuencia sentada que muestra una apertura suave del pecho con las manos en los bordes de la silla.",
   },
   shoulders: {
     movement: "Paso a paso: hombros arriba al inhalar; atrás y abajo al exhalar.",
+    alternative: "Menor amplitud: hacé círculos pequeños o mové un hombro por vez.",
+    image: "assets/postures/shoulders.webp",
+    alt: "Secuencia sentada que muestra los hombros relajados, elevados y luego hacia atrás y abajo.",
   },
 };
 
@@ -350,6 +371,8 @@ const state = {
     phaseRemainingMs: 0,
     currentPhaseIndex: 0,
     currentPhaseLabel: "",
+    phaseKey: "",
+    preparationComplete: false,
     endingWarned: false,
     finishing: false,
   },
@@ -363,6 +386,8 @@ const state = {
     pausedAt: null,
     pausedTotalMs: 0,
     currentPoseIndex: 0,
+    manualPoseIndex: null,
+    manualPoseUntil: 0,
   },
   audio: {
     context: null,
@@ -748,13 +773,16 @@ async function renderRoutinePage(routineId) {
           <div class="detail"><dt>Duración</dt><dd>${modalityDurationDescription(modality)}</dd></div>
         </dl>
       </details>
+      ${safetyDialogMarkup()}
       ${appFooter()}
     </section>
   `;
 
   bindRoutes();
   document.querySelector("[data-start-selected]").addEventListener("click", async () => {
-    await startRoutineSession(routine, { modality: modality.id });
+    const start = () => startRoutineSession(routine, { modality: modality.id });
+    if (readLocalPreference("safety-seen") === "yes") await start();
+    else openSafetyDialog(start);
   });
 }
 
@@ -788,6 +816,7 @@ async function renderSessionPage(sessionId) {
 
   state.sessionId = session.id;
   state.routine = routine;
+  const modality = modalityFor(session.modality) || (session.skip_postures ? MODALITIES[0] : MODALITIES[2]);
 
   app.className = "app-shell";
   app.innerHTML = `
@@ -798,7 +827,14 @@ async function renderSessionPage(sessionId) {
       </div>
       <div class="session-space">
         <p class="eyebrow">5 minutos de respiración</p>
-        <div class="breath-wrap">
+        <div class="preparation-card" data-preparation>
+          <div class="preparation-progress" aria-hidden="true"><span data-preparation-progress></span></div>
+          <span class="preparation-count" data-preparation-count>${BREATHING_PRIMER_SECONDS}</span>
+          <h2 data-preparation-heading>Prepará tu espacio</h2>
+          <p>Sentate con ambos pies apoyados y aflojá los hombros. Durante estos segundos, respirás con naturalidad.</p>
+          <p class="safety-inline">Detenete si sentís mareo, dolor, dificultad para respirar o un malestar que aumenta.</p>
+        </div>
+        <div class="breath-wrap" data-breath-wrap hidden>
           <div class="breath-circle" data-circle>
             <div class="breath-text" data-instruction>Inhala</div>
           </div>
@@ -808,20 +844,39 @@ async function renderSessionPage(sessionId) {
           <span class="audio-status" data-audio-status>${audioStatusLabel()}</span>
         </div>
         <div class="actions" style="justify-content: center;">
-          <button class="button button-soft" type="button" data-pause> Pausar </button>
+          <button class="button button-soft" type="button" data-pause>Pausar</button>
           <button class="button button-secondary" type="button" data-audio-toggle aria-pressed="${String(isAudioEnabled())}">
             ${audioButtonLabel()}
           </button>
-          <button class="button button-danger" type="button" data-finish>Finalizar</button>
+          ${modality.id === "complete" ? `<button class="button button-secondary" type="button" data-skip-movement>Saltar a movimiento</button>` : ""}
+          <button class="button button-danger" type="button" data-finish>Terminar pausa</button>
         </div>
       </div>
+      ${confirmationDialogMarkup()}
     </section>
   `;
 
   startBreathingSession(routine, session.id);
   document.querySelector("[data-pause]").addEventListener("click", togglePause);
   document.querySelector("[data-audio-toggle]").addEventListener("click", toggleAudio);
-  document.querySelector("[data-finish]").addEventListener("click", () => finishSession(session.id, false));
+  document.querySelector("[data-skip-movement]")?.addEventListener("click", () => {
+    openConfirmationDialog({
+      title: "¿Pasar a movimiento?",
+      message: "La respiración quedará registrada como interrumpida y la música continuará en la rutina de posturas.",
+      saved: "Se guardará que comenzaste respiración y continuaste con movimiento.",
+      confirmLabel: "Sí, pasar a movimiento",
+      onConfirm: () => finishSession(session.id, false, { skipToMovement: true }),
+    });
+  });
+  document.querySelector("[data-finish]").addEventListener("click", () => {
+    openConfirmationDialog({
+      title: "¿Terminar esta pausa?",
+      message: "Vas a ir al cierre y podrás registrar cómo te sentís.",
+      saved: "Se guardarán la modalidad, el tiempo realizado y las partes que hayas completado.",
+      confirmLabel: "Sí, terminar",
+      onConfirm: () => finishSession(session.id, false, { terminate: true }),
+    });
+  });
 }
 
 async function renderFeedbackPage(sessionId) {
@@ -830,13 +885,15 @@ async function renderFeedbackPage(sessionId) {
   const session = await safeGetRecord("Session", sessionId);
   if (!session) return navigate("moods");
   const insights = await buildSessionInsights();
+  const modality = modalityFor(session.modality) || (session.skip_postures ? MODALITIES[0] : MODALITIES[2]);
 
   app.className = "app-shell";
   app.innerHTML = `
     <section class="screen screen-wide panel">
-      ${brandBar("moods")}
+      ${brandBar("modalities")}
+      <p class="completion-note">${completionSummary(session, modality)}</p>
       <h2>¿Cómo te sientes después?</h2>
-      <p class="lead">Elige una respuesta para guardar tu sesión.</p>
+      <p class="lead">Podés registrar una respuesta o continuar sin hacerlo. No es una evaluación clínica.</p>
       <div class="feedback-grid">
         ${FEELINGS_AFTER.map(
           (feeling) => `
@@ -847,13 +904,15 @@ async function renderFeedbackPage(sessionId) {
           `,
         ).join("")}
       </div>
-      <p class="saved-note" data-saved hidden>Sesión guardada.</p>
+      <p class="saved-note" data-saved hidden>Respuesta guardada en este dispositivo.</p>
       <div class="insights" data-insights>
         ${renderInsights(insights)}
       </div>
       <div class="actions">
-        <button class="button button-secondary" type="button" data-route="moods">Nueva rutina</button>
+        <button class="button" type="button" data-route="modalities">Elegir otra pausa</button>
+        <button class="button button-secondary" type="button" data-route="welcome">Omitir respuesta</button>
       </div>
+      ${appFooter()}
     </section>
   `;
 
@@ -863,7 +922,6 @@ async function renderFeedbackPage(sessionId) {
       document.querySelectorAll("[data-after]").forEach((item) => item.setAttribute("aria-pressed", "false"));
       button.setAttribute("aria-pressed", "true");
       session.mood_after = button.dataset.after;
-      session.completed = true;
       session.date = session.date || new Date().toISOString();
       await putRecord("Session", session);
       document.querySelector("[data-saved]").hidden = false;
@@ -880,6 +938,8 @@ async function renderPosturePage(sessionId) {
   if (!routine) return navigate("moods");
 
   const postureRoutine = postureRoutineFor(routine.mood);
+  const firstPose = postureRoutine.poses[0];
+  const firstGuide = postureGuideFor(firstPose);
   state.sessionId = session.id;
   state.routine = routine;
 
@@ -891,27 +951,51 @@ async function renderPosturePage(sessionId) {
         <div class="timer" data-posture-timer>${formatTime(POSTURE_DURATION_SECONDS)}</div>
       </div>
       <div class="posture-space">
-        <div class="posture-copy">
-          <p class="eyebrow">5 minutos de posturas</p>
-          <h2 data-posture-name>${postureRoutine.poses[0].name}</h2>
-          <p class="lead" data-posture-cue>${postureRoutine.poses[0].cue}</p>
-          <p class="posture-movement" data-posture-movement>${postureGuideFor(postureRoutine.poses[0]).movement}</p>
-          <div class="session-meta">
-            <span>${postureRoutine.category} · ${postureRoutine.objective}</span>
-            <span class="audio-status" data-posture-step>1 de ${postureRoutine.poses.length}</span>
+        <div class="posture-stage">
+          <figure class="posture-visual">
+            <img src="${firstGuide.image}" alt="${firstGuide.alt}" data-posture-image />
+            <figcaption class="posture-image-fallback" data-posture-image-fallback hidden>
+              La imagen no está disponible. Seguí la indicación escrita y usá una amplitud cómoda.
+            </figcaption>
+          </figure>
+          <div class="posture-copy">
+            <p class="eyebrow">5 minutos de movimiento</p>
+            <h2 data-posture-name>${firstPose.name}</h2>
+            <p class="lead" data-posture-cue>${firstPose.cue}</p>
+            <p class="posture-movement" data-posture-movement>${firstGuide.movement}</p>
+            <p class="posture-alternative" data-posture-alternative>${firstGuide.alternative}</p>
           </div>
         </div>
+        <div class="posture-progress-row">
+          <span class="audio-status" data-posture-step>Postura 1 de ${postureRoutine.poses.length}</span>
+          <span data-posture-next>Después: ${postureRoutine.poses[1]?.name || "Cierre"}</span>
+        </div>
+        <div class="practice-progress" aria-hidden="true"><span data-posture-progress></span></div>
         <div class="actions" style="justify-content: center;">
           <button class="button button-soft" type="button" data-posture-pause>Pausar</button>
-          <button class="button button-danger" type="button" data-posture-finish>Finalizar</button>
+          <button class="button button-secondary" type="button" data-posture-repeat>Repetir indicación</button>
+          <button class="button button-secondary" type="button" data-posture-next-button>Siguiente postura</button>
+          <button class="button button-danger" type="button" data-posture-finish>Terminar pausa</button>
         </div>
       </div>
+      ${confirmationDialogMarkup()}
     </section>
   `;
 
+  bindPostureImageFallback();
   startPostureSession(postureRoutine, session.id);
   document.querySelector("[data-posture-pause]").addEventListener("click", togglePosturePause);
-  document.querySelector("[data-posture-finish]").addEventListener("click", () => finishPostureSession(session.id));
+  document.querySelector("[data-posture-repeat]").addEventListener("click", () => repeatCurrentPosture(postureRoutine));
+  document.querySelector("[data-posture-next-button]").addEventListener("click", () => goToNextPosture(postureRoutine));
+  document.querySelector("[data-posture-finish]").addEventListener("click", () => {
+    openConfirmationDialog({
+      title: "¿Terminar esta pausa?",
+      message: "Vas a ir al cierre y podrás registrar cómo te sentís.",
+      saved: "Se guardarán la modalidad, el tiempo realizado y las partes que hayas completado.",
+      confirmLabel: "Sí, terminar",
+      onConfirm: () => finishPostureSession(session.id, { completed: false }),
+    });
+  });
 }
 
 async function routineForMood(mood) {
@@ -937,6 +1021,79 @@ function appFooter() {
       <button type="button" data-route="privacy">Privacidad</button>
     </footer>
   `;
+}
+
+function safetyDialogMarkup() {
+  return `
+    <dialog class="practice-dialog" data-safety-dialog aria-labelledby="safety-dialog-title">
+      <p class="eyebrow">Antes de tu primera práctica</p>
+      <h2 id="safety-dialog-title">Cuidá tu comodidad</h2>
+      <p>Respirá con naturalidad, no fuerces los movimientos y detenete si aparece dolor, mareo, dificultad para respirar o un malestar que aumenta.</p>
+      <p class="dialog-note">Esta aplicación ofrece orientación general de bienestar y no reemplaza atención profesional.</p>
+      <div class="dialog-actions">
+        <button class="button" type="button" data-safety-accept>Entiendo, comenzar</button>
+        <button class="button button-secondary" type="button" data-safety-cancel>Volver</button>
+      </div>
+    </dialog>
+  `;
+}
+
+function openSafetyDialog(onStart) {
+  const dialog = document.querySelector("[data-safety-dialog]");
+  if (!dialog) return onStart();
+  dialog.querySelector("[data-safety-cancel]").onclick = () => dialog.close();
+  dialog.querySelector("[data-safety-accept]").onclick = async () => {
+    writeLocalPreference("safety-seen", "yes");
+    dialog.close();
+    await onStart();
+  };
+  dialog.showModal();
+}
+
+function confirmationDialogMarkup() {
+  return `
+    <dialog class="practice-dialog" data-confirmation-dialog aria-labelledby="confirmation-dialog-title">
+      <h2 id="confirmation-dialog-title" data-confirmation-title>¿Terminar esta pausa?</h2>
+      <p data-confirmation-message></p>
+      <p class="dialog-note" data-confirmation-saved></p>
+      <div class="dialog-actions">
+        <button class="button button-danger" type="button" data-confirmation-accept>Confirmar</button>
+        <button class="button button-secondary" type="button" data-confirmation-cancel>Seguir practicando</button>
+      </div>
+    </dialog>
+  `;
+}
+
+function openConfirmationDialog({ title, message, saved, confirmLabel, onConfirm }) {
+  const dialog = document.querySelector("[data-confirmation-dialog]");
+  if (!dialog) return;
+  dialog.querySelector("[data-confirmation-title]").textContent = title;
+  dialog.querySelector("[data-confirmation-message]").textContent = message;
+  dialog.querySelector("[data-confirmation-saved]").textContent = saved;
+  const accept = dialog.querySelector("[data-confirmation-accept]");
+  accept.textContent = confirmLabel;
+  accept.onclick = async () => {
+    accept.disabled = true;
+    dialog.close();
+    await onConfirm();
+  };
+  dialog.querySelector("[data-confirmation-cancel]").onclick = () => dialog.close();
+  dialog.showModal();
+}
+
+function bindPostureImageFallback() {
+  const image = document.querySelector("[data-posture-image]");
+  const fallback = document.querySelector("[data-posture-image-fallback]");
+  if (!image || !fallback) return;
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    fallback.hidden = false;
+    announce("La imagen no está disponible. Seguí la indicación escrita.");
+  });
+  image.addEventListener("load", () => {
+    image.hidden = false;
+    fallback.hidden = true;
+  });
 }
 
 function renderPrivacyPage() {
@@ -1014,6 +1171,29 @@ function recommendationDescription(routine, modality) {
 function modalityDurationDescription(modality) {
   if (modality.id === "complete") return "5 minutos de respiración + 5 minutos de movimiento";
   return `${modality.duration} minutos`;
+}
+
+function normalizeCompletedParts(parts) {
+  return Array.isArray(parts) ? [...new Set(parts)] : [];
+}
+
+async function markPartStarted(sessionId, part) {
+  const session = await safeGetRecord("Session", sessionId);
+  if (!session) return;
+  session.started_parts = normalizeCompletedParts(session.started_parts);
+  if (!session.started_parts.includes(part)) session.started_parts.push(part);
+  await putRecord("Session", session);
+}
+
+function completionSummary(session, modality) {
+  const completedParts = normalizeCompletedParts(session.completed_parts);
+  if (session.completed) return `Completaste ${modality.label.toLowerCase()} · ${modality.duration} min`;
+  if (completedParts.length) return `Pausa finalizada · Completaste ${completedParts.map(partLabel).join(" y ")}`;
+  return "Pausa finalizada antes de completar la primera parte";
+}
+
+function partLabel(part) {
+  return part === "breathing" ? "respiración" : "movimiento";
 }
 
 function startActionLabel(modality) {
@@ -1132,17 +1312,20 @@ function startBreathingSession(routine, sessionId) {
     phaseRemainingMs: 0,
     currentPhaseIndex: 0,
     currentPhaseLabel: "",
+    phaseKey: "",
+    preparationComplete: false,
     endingWarned: false,
     finishing: false,
   };
 
   startRoutineAudio(routine);
   startGuideAudio("breathing", routine.mood);
+  markPartStarted(sessionId, "breathing");
   renderTimer();
+  updateSessionProgress(sessionId);
   state.session.intervalId = window.setInterval(() => {
     updateSessionProgress(state.sessionId);
   }, 250);
-  runBreathingPrimer(BREATHING_PRIMER_SECONDS * 1000);
 }
 
 function buildPhases(routine) {
@@ -1165,10 +1348,24 @@ function sessionRemainingSeconds(now = performance.now()) {
   return Math.max(0, Math.ceil((state.session.durationMs - elapsedMs) / 1000));
 }
 
+function sessionElapsedMilliseconds(now = performance.now()) {
+  if (!state.session.running) return 0;
+  const pausedMs = state.session.pausedAt ? now - state.session.pausedAt : 0;
+  return Math.max(0, now - state.session.startedAt - state.session.pausedTotalMs - pausedMs);
+}
+
 function updateSessionProgress(sessionId) {
   if (!state.session.running || state.session.finishing) return;
   state.session.remainingSeconds = sessionRemainingSeconds();
   renderTimer();
+
+  const elapsedMs = sessionElapsedMilliseconds();
+  const primerMs = BREATHING_PRIMER_SECONDS * 1000;
+  if (elapsedMs < primerMs) updatePreparationUi(elapsedMs, primerMs);
+  else {
+    completePreparationUi();
+    syncBreathingPhase(state.routine, elapsedMs - primerMs);
+  }
 
   if (state.session.remainingSeconds <= 15 && !state.session.endingWarned) {
     prepareSessionEnding();
@@ -1179,51 +1376,65 @@ function updateSessionProgress(sessionId) {
   }
 }
 
-function runPhase(durationOverrideMs) {
-  const circle = document.querySelector("[data-circle]");
-  const instruction = document.querySelector("[data-instruction]");
-  if (!circle || !instruction || !state.routine || state.session.paused) return;
-
-  const phases = buildPhases(state.routine);
-  const phase = phases[state.session.currentPhaseIndex % phases.length];
-  const phaseDurationMs = Math.max(0, durationOverrideMs ?? phase.seconds * 1000);
-
-  if (!state.session.endingWarned) instruction.textContent = phase.label;
-  state.session.currentPhaseLabel = phase.label;
-  state.session.phaseStartedAt = performance.now();
-  state.session.phaseRemainingMs = phaseDurationMs;
-  circle.style.setProperty("--phase-ms", `${phaseDurationMs}ms`);
-  circle.style.setProperty("--breath-scale", String(phase.scale));
-  circle.style.transitionTimingFunction = phase.easing;
-
-  state.session.phaseTimeoutId = window.setTimeout(() => {
-    state.session.currentPhaseIndex += 1;
-    runPhase();
-  }, phaseDurationMs);
+function updatePreparationUi(elapsedMs, primerMs) {
+  const count = document.querySelector("[data-preparation-count]");
+  const progress = document.querySelector("[data-preparation-progress]");
+  const remainingSeconds = Math.max(0, Math.ceil((primerMs - elapsedMs) / 1000));
+  if (count) count.textContent = String(remainingSeconds);
+  if (progress) progress.style.width = `${Math.min(100, (elapsedMs / primerMs) * 100)}%`;
+  state.session.currentPhaseLabel = "Prepara";
 }
 
-function runBreathingPrimer(durationOverrideMs) {
+function completePreparationUi() {
+  if (state.session.preparationComplete) return;
+  state.session.preparationComplete = true;
+  const preparation = document.querySelector("[data-preparation]");
+  const breathWrap = document.querySelector("[data-breath-wrap]");
+  if (preparation) preparation.hidden = true;
+  if (breathWrap) breathWrap.hidden = false;
+  announce("Comienza el patrón de respiración");
+}
+
+function syncBreathingPhase(routine, practiceElapsedMs) {
   const circle = document.querySelector("[data-circle]");
   const instruction = document.querySelector("[data-instruction]");
-  if (!circle || !instruction || state.session.paused) return;
+  if (!circle || !instruction || !routine || state.session.paused || state.session.endingWarned) return;
 
-  const primerDurationMs = Math.max(0, durationOverrideMs ?? BREATHING_PRIMER_SECONDS * 1000);
-  let primerCompleted = false;
-  const completePrimer = () => {
-    if (primerCompleted || state.session.paused || !state.session.running || state.session.currentPhaseLabel !== "Prepara") return;
-    primerCompleted = true;
-    window.clearTimeout(state.session.phaseTimeoutId);
-    runPhase();
-  };
+  const phases = buildPhases(routine);
+  const cycleMs = phases.reduce((total, phase) => total + phase.seconds * 1000, 0);
+  let cyclePosition = practiceElapsedMs % cycleMs;
+  let phaseIndex = 0;
+  let phaseStartMs = 0;
 
-  instruction.textContent = "Prepara";
-  state.session.currentPhaseLabel = "Prepara";
-  state.session.phaseStartedAt = performance.now();
-  state.session.phaseRemainingMs = primerDurationMs;
-  circle.style.setProperty("--phase-ms", `${primerDurationMs}ms`);
-  circle.style.setProperty("--breath-scale", "0.82");
-  circle.style.transitionTimingFunction = "ease-in-out";
-  state.session.phaseTimeoutId = window.setTimeout(completePrimer, primerDurationMs);
+  for (let index = 0; index < phases.length; index += 1) {
+    const phaseMs = phases[index].seconds * 1000;
+    if (cyclePosition < phaseMs) {
+      phaseIndex = index;
+      break;
+    }
+    cyclePosition -= phaseMs;
+    phaseStartMs += phaseMs;
+  }
+
+  const phase = phases[phaseIndex];
+  const phaseProgress = Math.min(1, cyclePosition / (phase.seconds * 1000));
+  const easedProgress = phase.easing === "linear" ? phaseProgress : phaseProgress * phaseProgress * (3 - 2 * phaseProgress);
+  const previousScale = phaseIndex === 0 ? phases[phases.length - 1].scale : phases[phaseIndex - 1].scale;
+  const currentScale = previousScale + (phase.scale - previousScale) * easedProgress;
+  const cycleNumber = Math.floor(practiceElapsedMs / cycleMs);
+  const phaseKey = `${cycleNumber}:${phaseIndex}:${phaseStartMs}`;
+
+  if (state.session.phaseKey !== phaseKey) {
+    state.session.phaseKey = phaseKey;
+    state.session.currentPhaseIndex = phaseIndex;
+    state.session.currentPhaseLabel = phase.label;
+    instruction.textContent = phase.label;
+    announce(phase.label);
+  }
+
+  circle.style.setProperty("--phase-ms", "260ms");
+  circle.style.setProperty("--breath-scale", currentScale.toFixed(3));
+  circle.style.transitionTimingFunction = "linear";
 }
 
 function togglePause() {
@@ -1235,11 +1446,6 @@ function togglePause() {
 
   if (state.session.paused) {
     state.session.pausedAt = performance.now();
-    state.session.phaseRemainingMs = Math.max(
-      0,
-      state.session.phaseRemainingMs - (state.session.pausedAt - state.session.phaseStartedAt),
-    );
-    window.clearTimeout(state.session.phaseTimeoutId);
     if (circle) circle.style.transitionDuration = "0ms";
     pauseRoutineAudio(true);
     pauseGuideAudio(true);
@@ -1251,8 +1457,7 @@ function togglePause() {
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
   pauseGuideAudio(false);
-  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer(state.session.phaseRemainingMs);
-  else runPhase(state.session.phaseRemainingMs);
+  updateSessionProgress(state.sessionId);
 }
 
 function prepareSessionEnding() {
@@ -1262,12 +1467,15 @@ function prepareSessionEnding() {
   fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.12), 5);
 }
 
-async function finishSession(sessionId, completed, options = {}) {
+async function finishSession(sessionId, breathingCompleted, options = {}) {
   if (state.session.finishing) return;
   state.session.finishing = true;
   window.clearInterval(state.session.intervalId);
   window.clearTimeout(state.session.phaseTimeoutId);
-  fadeRoutineAudioTo(POSTURE_MUSIC_VOLUME, completed ? 1.4 : 0.6);
+  const session = await getRecord("Session", sessionId);
+  const modality = modalityFor(session?.modality) || (session?.skip_postures ? MODALITIES[0] : MODALITIES[2]);
+  const continueToMovement = modality.id === "complete" && (breathingCompleted || options.skipToMovement);
+  fadeRoutineAudioTo(continueToMovement ? POSTURE_MUSIC_VOLUME : 0.0001, breathingCompleted ? 1.4 : 0.6);
 
   if (options.fromTimer) {
     const instruction = document.querySelector("[data-instruction]");
@@ -1277,16 +1485,25 @@ async function finishSession(sessionId, completed, options = {}) {
     await wait(500);
   }
 
+  const breathingSeconds = Math.min(BREATHING_DURATION_SECONDS, Math.round(sessionElapsedMilliseconds() / 1000));
   stopGuideAudio();
   state.session.running = false;
-  const session = await getRecord("Session", sessionId);
   if (session) {
-    session.completed = completed;
+    session.breathing_seconds = breathingSeconds;
+    session.completed_parts = normalizeCompletedParts(session.completed_parts);
+    if (breathingCompleted && !session.completed_parts.includes("breathing")) session.completed_parts.push("breathing");
+    if (!breathingCompleted) session.interrupted = true;
+    session.completed = modality.id === "breathing" && breathingCompleted;
+    session.ended_at = continueToMovement ? "" : new Date().toISOString();
     session.date = session.date || new Date().toISOString();
     await putRecord("Session", session);
   }
-  const skipPostures = !completed || session?.skip_postures || state.sessionOptions.get(sessionId)?.skipPostures;
-  navigate(skipPostures ? `feedback/${sessionId}` : `postures/${sessionId}`);
+
+  if (continueToMovement) navigate(`postures/${sessionId}`);
+  else {
+    stopRoutineAudio();
+    navigate(`feedback/${sessionId}`);
+  }
 }
 
 function stopSessionTimers(options = {}) {
@@ -1309,6 +1526,8 @@ function startPostureSession(routine, sessionId) {
     pausedAt: null,
     pausedTotalMs: 0,
     currentPoseIndex: 0,
+    manualPoseIndex: null,
+    manualPoseUntil: 0,
     endingWarned: false,
     finishing: false,
   };
@@ -1319,6 +1538,7 @@ function startPostureSession(routine, sessionId) {
     fadeRoutineAudioTo(POSTURE_MUSIC_VOLUME, 1.2);
   }
   startGuideAudio("postures", state.routine?.mood);
+  markPartStarted(sessionId, "movement");
 
   renderPosturePose(routine);
   renderPostureTimer();
@@ -1335,6 +1555,12 @@ function postureRemainingSeconds(now = performance.now()) {
   return Math.max(0, Math.ceil((state.posture.durationMs - elapsedMs) / 1000));
 }
 
+function postureElapsedMilliseconds(now = performance.now()) {
+  if (!state.posture.running) return 0;
+  const pausedMs = state.posture.pausedAt ? now - state.posture.pausedAt : 0;
+  return Math.max(0, now - state.posture.startedAt - state.posture.pausedTotalMs - pausedMs);
+}
+
 function updatePostureProgress(routine, sessionId) {
   if (!state.posture.running || state.posture.finishing) return;
   state.posture.remainingSeconds = postureRemainingSeconds();
@@ -1346,10 +1572,23 @@ function updatePostureProgress(routine, sessionId) {
 
   if (!state.posture.endingWarned) {
     const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
-    state.posture.currentPoseIndex = Math.min(
+    const scheduledIndex = Math.min(
       routine.poses.length - 1,
       Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
     );
+    const now = performance.now();
+    if (state.posture.manualPoseIndex !== null) {
+      const repeatActive = state.posture.manualPoseUntil > now;
+      const waitingForSchedule = !state.posture.manualPoseUntil && scheduledIndex <= state.posture.manualPoseIndex;
+      if (repeatActive || waitingForSchedule) state.posture.currentPoseIndex = state.posture.manualPoseIndex;
+      else {
+        state.posture.manualPoseIndex = null;
+        state.posture.manualPoseUntil = 0;
+        state.posture.currentPoseIndex = scheduledIndex;
+      }
+    } else {
+      state.posture.currentPoseIndex = scheduledIndex;
+    }
     renderPosturePose(routine);
   }
 
@@ -1364,12 +1603,30 @@ function renderPosturePose(routine) {
   const name = document.querySelector("[data-posture-name]");
   const cue = document.querySelector("[data-posture-cue]");
   const movement = document.querySelector("[data-posture-movement]");
+  const alternative = document.querySelector("[data-posture-alternative]");
   const step = document.querySelector("[data-posture-step]");
+  const next = document.querySelector("[data-posture-next]");
+  const progress = document.querySelector("[data-posture-progress]");
+  const image = document.querySelector("[data-posture-image]");
+  const fallback = document.querySelector("[data-posture-image-fallback]");
+  const nextButton = document.querySelector("[data-posture-next-button]");
 
   if (name) name.textContent = pose.name;
   if (cue) cue.textContent = pose.cue;
   if (movement) movement.textContent = guide.movement;
-  if (step) step.textContent = `${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
+  if (alternative) alternative.textContent = guide.alternative;
+  if (step) step.textContent = `Postura ${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
+  if (next) next.textContent = `Después: ${routine.poses[state.posture.currentPoseIndex + 1]?.name || "Cierre"}`;
+  if (progress) progress.style.width = `${Math.min(100, (postureElapsedMilliseconds() / state.posture.durationMs) * 100)}%`;
+  if (nextButton) nextButton.disabled = state.posture.currentPoseIndex >= routine.poses.length - 1;
+
+  if (image && image.dataset.poseId !== pose.id) {
+    image.dataset.poseId = pose.id;
+    image.src = guide.image;
+    image.alt = guide.alt;
+    image.hidden = false;
+    if (fallback) fallback.hidden = true;
+  }
 }
 
 function preparePostureEnding() {
@@ -1377,12 +1634,18 @@ function preparePostureEnding() {
   const name = document.querySelector("[data-posture-name]");
   const cue = document.querySelector("[data-posture-cue]");
   const movement = document.querySelector("[data-posture-movement]");
+  const alternative = document.querySelector("[data-posture-alternative]");
   const step = document.querySelector("[data-posture-step]");
+  const next = document.querySelector("[data-posture-next]");
+  const progress = document.querySelector("[data-posture-progress]");
 
   if (name) name.textContent = "Cierre";
   if (cue) cue.textContent = "La rutina de posturas está por terminar.";
   if (movement) movement.textContent = "Dejá que el cuerpo vuelva a la quietud y acompañá el cierre con una respiración suave.";
+  if (alternative) alternative.textContent = "Respirá con naturalidad, sin forzar ninguna posición.";
   if (step) step.textContent = "Cerrando";
+  if (next) next.textContent = "Últimos segundos";
+  if (progress) progress.style.width = "100%";
   fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
 }
 
@@ -1405,14 +1668,48 @@ function togglePosturePause() {
   pauseGuideAudio(state.posture.paused);
 }
 
-async function finishPostureSession(sessionId) {
+function repeatCurrentPosture(routine) {
+  if (state.posture.paused || state.posture.finishing) return;
+  state.posture.manualPoseIndex = state.posture.currentPoseIndex;
+  state.posture.manualPoseUntil = performance.now() + 15000;
+  renderPosturePose(routine);
+  const pose = routine.poses[state.posture.currentPoseIndex];
+  announce(`Repetimos la indicación de ${pose.name}. ${pose.cue}`);
+}
+
+function goToNextPosture(routine) {
+  if (state.posture.paused || state.posture.finishing) return;
+  const nextIndex = Math.min(routine.poses.length - 1, state.posture.currentPoseIndex + 1);
+  if (nextIndex === state.posture.currentPoseIndex) return;
+  state.posture.manualPoseIndex = nextIndex;
+  state.posture.manualPoseUntil = 0;
+  state.posture.currentPoseIndex = nextIndex;
+  renderPosturePose(routine);
+  announce(`Siguiente postura: ${routine.poses[nextIndex].name}`);
+}
+
+async function finishPostureSession(sessionId, options = { completed: true }) {
   if (!state.posture.running || state.posture.finishing) return;
   state.posture.finishing = true;
+  const movementSeconds = Math.min(POSTURE_DURATION_SECONDS, Math.round(postureElapsedMilliseconds() / 1000));
   stopPostureTimers();
   stopGuideAudio();
   fadeRoutineAudioTo(0.0001, 1.4);
   await wait(900);
   stopRoutineAudio();
+  const session = await getRecord("Session", sessionId);
+  if (session) {
+    const modality = modalityFor(session.modality) || MODALITIES[1];
+    session.movement_seconds = movementSeconds;
+    session.completed_parts = normalizeCompletedParts(session.completed_parts);
+    if (options.completed && !session.completed_parts.includes("movement")) session.completed_parts.push("movement");
+    if (!options.completed) session.interrupted = true;
+    session.completed = modality.id === "movement"
+      ? options.completed
+      : session.completed_parts.includes("breathing") && session.completed_parts.includes("movement");
+    session.ended_at = new Date().toISOString();
+    await putRecord("Session", session);
+  }
   navigate(`feedback/${sessionId}`);
 }
 
