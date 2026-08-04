@@ -172,6 +172,7 @@ const GUIDE_AUDIO = {
     tired: "assets/audio/cansancio-descanso-claro.m4a",
     distracted: "assets/audio/distraccion-centro-presente.m4a",
     "low energy": "assets/audio/poca-energia-brillo-interior.m4a",
+    "sleep better": "assets/audio/dormir-mejor-nido-nocturno.m4a",
   },
   postures: {
     anxious: "assets/audio/ansiedad-posturas.m4a",
@@ -179,6 +180,7 @@ const GUIDE_AUDIO = {
     tired: "assets/audio/cansancio-posturas.m4a",
     distracted: "assets/audio/distraccion-posturas.m4a",
     "low energy": "assets/audio/poca-energia-posturas.m4a",
+    "sleep better": "assets/audio/dormir-mejor-posturas.m4a",
   },
 };
 
