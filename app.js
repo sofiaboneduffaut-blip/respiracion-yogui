@@ -4,6 +4,7 @@ const TRACK_VOLUME = 0.34;
 const POSTURE_MUSIC_VOLUME = 0.18;
 const RAIN_VOLUME = 0.08;
 const GUIDE_VOLUME = 0.38;
+const BREATHING_DURATION_SECONDS = 5 * 60;
 const POSTURE_DURATION_SECONDS = 5 * 60;
 const BREATHING_PRIMER_SECONDS = 45;
 
@@ -53,7 +54,7 @@ const ROUTINES = [
     hold_seconds: 2,
     exhale_seconds: 6,
     second_hold_seconds: 0,
-    duration_minutes: 4,
+    duration_minutes: 5,
     description: "Una exhalación más larga para invitar al sistema nervioso a bajar el ritmo.",
     objective: "calmar ansiedad",
   },
@@ -75,7 +76,7 @@ const ROUTINES = [
     hold_seconds: 1,
     exhale_seconds: 5,
     second_hold_seconds: 0,
-    duration_minutes: 3,
+    duration_minutes: 5,
     description: "Respiración estable y breve para descansar sin caer en pesadez.",
     objective: "renovar energía suave",
   },
@@ -86,7 +87,7 @@ const ROUTINES = [
     hold_seconds: 4,
     exhale_seconds: 4,
     second_hold_seconds: 4,
-    duration_minutes: 4,
+    duration_minutes: 5,
     description: "Respiración cuadrada para recuperar foco, orden y presencia.",
     objective: "mejorar concentración",
   },
@@ -97,7 +98,7 @@ const ROUTINES = [
     hold_seconds: 2,
     exhale_seconds: 4,
     second_hold_seconds: 0,
-    duration_minutes: 4,
+    duration_minutes: 5,
     description: "Inhalaciones amplias para despertar vitalidad de forma amable.",
     objective: "activar energía",
   },
@@ -108,7 +109,7 @@ const ROUTINES = [
     hold_seconds: 0,
     exhale_seconds: 8,
     second_hold_seconds: 0,
-    duration_minutes: 6,
+    duration_minutes: 5,
     description: "Un ritmo lento centrado en exhalar para acompañar el descanso.",
     objective: "favorecer el sueño",
   },
@@ -335,6 +336,10 @@ const state = {
     paused: false,
     intervalId: null,
     remainingSeconds: 0,
+    durationMs: POSTURE_DURATION_SECONDS * 1000,
+    startedAt: 0,
+    pausedAt: null,
+    pausedTotalMs: 0,
     currentPoseIndex: 0,
   },
   audio: {
@@ -461,10 +466,10 @@ async function safeGetRecord(storeName, id) {
 
 async function seedRoutines() {
   const routines = await getAll("Routine");
-  if (routines.length > 0) return;
-
   for (const routine of ROUTINES) {
-    await addRecord("Routine", routine);
+    const existing = routines.find((storedRoutine) => storedRoutine.mood === routine.mood);
+    if (existing) await putRecord("Routine", { ...existing, ...routine, id: existing.id });
+    else await addRecord("Routine", routine);
   }
 }
 
@@ -512,6 +517,9 @@ function handleVisibilityChange() {
   keepAudioAlive();
   if (!document.hidden && state.session.running && !state.session.paused && state.sessionId) {
     updateSessionProgress(state.sessionId);
+  }
+  if (!document.hidden && state.posture.running && !state.posture.paused && state.sessionId) {
+    updatePostureProgress(postureRoutineFor(state.routine?.mood), state.sessionId);
   }
 }
 
@@ -651,11 +659,15 @@ async function renderRoutinePage(routineId) {
         <dl class="detail-list">
           <div class="detail">
             <dt>Respiración</dt>
-            <dd>${formatDurationLabel(breathingDurationSeconds(routine))}</dd>
+            <dd>5 minutos</dd>
           </div>
           <div class="detail">
-            <dt>Posturas opcionales</dt>
-            <dd>${formatDurationLabel(POSTURE_DURATION_SECONDS)}</dd>
+            <dt>Posturas</dt>
+            <dd>5 minutos</dd>
+          </div>
+          <div class="detail">
+            <dt>Duración total</dt>
+            <dd>10 minutos</dd>
           </div>
           <div class="detail">
             <dt>Patrón</dt>
@@ -672,8 +684,8 @@ async function renderRoutinePage(routineId) {
         </dl>
       </div>
       <div class="actions">
-        <button class="button" type="button" data-start-session="${routine.id}">Iniciar rutina</button>
-        <button class="button button-secondary" type="button" data-start-breathing-only="${routine.id}">Solo respiración</button>
+        <button class="button" type="button" data-start-session="${routine.id}">Iniciar rutina de 10 min</button>
+        <button class="button button-secondary" type="button" data-start-breathing-only="${routine.id}">Solo respiración · 5 min</button>
         <button class="button button-secondary" type="button" data-route="moods">Cambiar estado</button>
       </div>
     </section>
@@ -722,6 +734,7 @@ async function renderSessionPage(sessionId) {
         <div class="timer" data-timer>${formatTime(breathingDurationSeconds(routine))}</div>
       </div>
       <div class="session-space">
+        <p class="eyebrow">5 minutos de respiración</p>
         <div class="breath-wrap">
           <div class="breath-circle" data-circle>
             <div class="breath-text" data-instruction>Inhala</div>
@@ -961,6 +974,9 @@ function startBreathingSession(routine, sessionId) {
   startRoutineAudio(routine);
   startGuideAudio("breathing", routine.mood);
   renderTimer();
+  state.session.intervalId = window.setInterval(() => {
+    updateSessionProgress(state.sessionId);
+  }, 250);
   runBreathingPrimer(BREATHING_PRIMER_SECONDS * 1000);
 }
 
@@ -973,18 +989,8 @@ function buildPhases(routine) {
   ].filter((phase) => phase.seconds > 0);
 }
 
-function breathingDurationSeconds(routine) {
-  const requestedSeconds = routine.duration_minutes * 60;
-  const cycleSeconds = buildPhases(routine).reduce((sum, phase) => sum + phase.seconds, 0);
-  if (!cycleSeconds) return requestedSeconds;
-  return Math.ceil(requestedSeconds / cycleSeconds) * cycleSeconds;
-}
-
-function formatDurationLabel(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  if (!rest) return `${minutes} minutos`;
-  return `${minutes} min ${String(rest).padStart(2, "0")} s`;
+function breathingDurationSeconds() {
+  return BREATHING_DURATION_SECONDS;
 }
 
 function sessionRemainingSeconds(now = performance.now()) {
@@ -1042,12 +1048,7 @@ function runBreathingPrimer(durationOverrideMs) {
     if (primerCompleted || state.session.paused || !state.session.running || state.session.currentPhaseLabel !== "Prepara") return;
     primerCompleted = true;
     window.clearTimeout(state.session.phaseTimeoutId);
-    state.session.startedAt = performance.now();
-    state.session.pausedTotalMs = 0;
     runPhase();
-    state.session.intervalId = window.setInterval(() => {
-      updateSessionProgress(state.sessionId);
-    }, 250);
   };
 
   instruction.textContent = "Prepara";
@@ -1085,7 +1086,7 @@ function togglePause() {
   if (circle) circle.style.transitionDuration = "";
   pauseRoutineAudio(false);
   pauseGuideAudio(false);
-  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer();
+  if (state.session.currentPhaseLabel === "Prepara") runBreathingPrimer(state.session.phaseRemainingMs);
   else runPhase(state.session.phaseRemainingMs);
 }
 
@@ -1138,6 +1139,10 @@ function startPostureSession(routine, sessionId) {
     paused: false,
     intervalId: null,
     remainingSeconds: POSTURE_DURATION_SECONDS,
+    durationMs: POSTURE_DURATION_SECONDS * 1000,
+    startedAt: performance.now(),
+    pausedAt: null,
+    pausedTotalMs: 0,
     currentPoseIndex: 0,
     endingWarned: false,
     finishing: false,
@@ -1154,29 +1159,38 @@ function startPostureSession(routine, sessionId) {
   renderPostureTimer();
 
   state.posture.intervalId = window.setInterval(() => {
-    if (state.posture.paused) return;
+    updatePostureProgress(routine, sessionId);
+  }, 250);
+}
 
-    state.posture.remainingSeconds -= 1;
-    renderPostureTimer();
+function postureRemainingSeconds(now = performance.now()) {
+  if (!state.posture.running) return 0;
+  const pausedMs = state.posture.pausedAt ? now - state.posture.pausedAt : 0;
+  const elapsedMs = now - state.posture.startedAt - state.posture.pausedTotalMs - pausedMs;
+  return Math.max(0, Math.ceil((state.posture.durationMs - elapsedMs) / 1000));
+}
 
-    if (state.posture.remainingSeconds <= 15 && !state.posture.endingWarned) {
-      preparePostureEnding();
-    }
+function updatePostureProgress(routine, sessionId) {
+  if (!state.posture.running || state.posture.finishing) return;
+  state.posture.remainingSeconds = postureRemainingSeconds();
+  renderPostureTimer();
 
-    if (!state.posture.endingWarned) {
-      const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
-      state.posture.currentPoseIndex = Math.min(
-        routine.poses.length - 1,
-        Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
-      );
+  if (state.posture.remainingSeconds <= 15 && !state.posture.endingWarned) {
+    preparePostureEnding();
+  }
 
-      renderPosturePose(routine);
-    }
+  if (!state.posture.endingWarned) {
+    const poseDuration = Math.ceil(POSTURE_DURATION_SECONDS / routine.poses.length);
+    state.posture.currentPoseIndex = Math.min(
+      routine.poses.length - 1,
+      Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
+    );
+    renderPosturePose(routine);
+  }
 
-    if (state.posture.remainingSeconds <= 0) {
-      finishPostureSession(sessionId);
-    }
-  }, 1000);
+  if (state.posture.remainingSeconds <= 0) {
+    finishPostureSession(sessionId);
+  }
 }
 
 function renderPosturePose(routine) {
@@ -1215,6 +1229,12 @@ function renderPostureTimer() {
 function togglePosturePause() {
   const button = document.querySelector("[data-posture-pause]");
   state.posture.paused = !state.posture.paused;
+  if (state.posture.paused) {
+    state.posture.pausedAt = performance.now();
+  } else {
+    state.posture.pausedTotalMs += performance.now() - state.posture.pausedAt;
+    state.posture.pausedAt = null;
+  }
   if (button) button.textContent = state.posture.paused ? "Continuar" : "Pausar";
   pauseRoutineAudio(state.posture.paused, POSTURE_MUSIC_VOLUME);
   pauseGuideAudio(state.posture.paused);
