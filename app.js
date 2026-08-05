@@ -154,8 +154,8 @@ const MUSIC_THEMES = {
     rain: true,
   },
   stressed: {
-    name: "Jomon Grove",
-    file: "assets/audio/jomon-grove-the-mini-vandals.mp3",
+    name: "Sleep Music No. 1",
+    file: "assets/audio/sleep-music-no-1-chris-haugen.mp3",
     rain: false,
   },
   tired: {
@@ -164,8 +164,8 @@ const MUSIC_THEMES = {
     rain: false,
   },
   distracted: {
-    name: "Jomon Grove",
-    file: "assets/audio/jomon-grove-the-mini-vandals.mp3",
+    name: "Sleep Music No. 1 + lluvia suave",
+    file: "assets/audio/sleep-music-no-1-chris-haugen.mp3",
     rain: true,
   },
   "low energy": {
@@ -179,8 +179,8 @@ const MUSIC_THEMES = {
     rain: true,
   },
   balanced: {
-    name: "Jomon Grove",
-    file: "assets/audio/jomon-grove-the-mini-vandals.mp3",
+    name: "Sleep Music No. 1",
+    file: "assets/audio/sleep-music-no-1-chris-haugen.mp3",
     rain: false,
   },
 };
