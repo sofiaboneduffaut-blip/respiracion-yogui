@@ -339,6 +339,11 @@ const POSTURE_GUIDES = {
 };
 
 const assetAvailability = new Map();
+const memoryStores = {
+  User: [],
+  Routine: [],
+  Session: [],
+};
 
 const FEELINGS_AFTER = [
   { id: "calm", label: "Más calma", hint: "Mi respiración se siente más amplia." },
@@ -351,6 +356,10 @@ const FEELINGS_AFTER = [
 
 const state = {
   db: null,
+  eventsBound: false,
+  storage: {
+    temporary: false,
+  },
   user: null,
   mood: null,
   modality: readLocalPreference("modality"),
@@ -402,6 +411,7 @@ const state = {
     routineId: null,
     guideElement: null,
     guideKey: null,
+    issue: "",
   },
 };
 
@@ -413,36 +423,83 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializeApp() {
-  state.db = await openDatabase();
+  renderLoadingState();
   initPersistentAudioHandling();
+  if (new URLSearchParams(window.location.search).get("storage") === "temporary") {
+    state.storage.temporary = true;
+  } else {
+    state.db = await openDatabase();
+  }
+  await completeInitialization();
+}
+
+async function completeInitialization() {
   await seedRoutines();
   state.user = await getOrCreateUser();
-  window.addEventListener("hashchange", renderRouteSafely);
-  document.addEventListener("visibilitychange", handleVisibilityChange);
+  if (!state.eventsBound) {
+    window.addEventListener("hashchange", renderRouteSafely);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    state.eventsBound = true;
+  }
   renderRouteSafely();
 }
 
+function renderLoadingState() {
+  app.className = "app-shell";
+  app.setAttribute("aria-busy", "true");
+  app.innerHTML = `
+    <section class="screen panel loading-panel" role="status">
+      <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
+      <span class="loading-indicator" aria-hidden="true"></span>
+      <h2>Preparando tu pausa</h2>
+      <p>Estamos cargando las rutinas guardadas en este dispositivo.</p>
+    </section>
+  `;
+}
+
 function handleStartupError(error) {
-  console.error(error);
+  logTechnicalError("inicio", error);
+  app.removeAttribute("aria-busy");
   app.className = "app-shell";
   app.innerHTML = `
     <section class="screen panel">
       <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
       <p class="eyebrow">Pausa consciente</p>
       <h2>No pude iniciar la aplicación</h2>
-      <p class="lead">Puede haber quedado una sesión guardada con datos viejos. Probá reintentar o reiniciar el acceso.</p>
+      <p class="lead">El navegador no permitió abrir el historial local. Podés reintentar o practicar ahora en modo temporal.</p>
       <div class="actions">
         <button class="button" type="button" data-retry-start>Reintentar</button>
-        <button class="button button-secondary" type="button" data-reset-start>Reiniciar acceso</button>
+        <button class="button button-secondary" type="button" data-temporary-start>Usar sin historial</button>
       </div>
+      <p class="local-note">En modo temporal, la práctica funciona pero se borra al cerrar o recargar esta página.</p>
     </section>
   `;
 
   document.querySelector("[data-retry-start]")?.addEventListener("click", () => window.location.reload());
-  document.querySelector("[data-reset-start]")?.addEventListener("click", () => {
-    window.location.hash = "welcome";
-    window.location.reload();
+  document.querySelector("[data-temporary-start]")?.addEventListener("click", async () => {
+    state.storage.temporary = true;
+    state.db = null;
+    resetMemoryStores();
+    renderLoadingState();
+    try {
+      await completeInitialization();
+    } catch (temporaryError) {
+      logTechnicalError("modo temporal", temporaryError);
+      renderFatalError();
+    }
   });
+}
+
+function renderFatalError() {
+  app.removeAttribute("aria-busy");
+  app.innerHTML = `
+    <section class="screen panel">
+      <h2>No pudimos cargar las rutinas</h2>
+      <p class="lead">Revisá tu conexión y probá nuevamente.</p>
+      <div class="actions"><button class="button" type="button" data-retry-start>Reintentar</button></div>
+    </section>
+  `;
+  document.querySelector("[data-retry-start]")?.addEventListener("click", () => window.location.reload());
 }
 
 function openDatabase() {
@@ -479,6 +536,18 @@ function tx(storeName, mode = "readonly") {
   return state.db.transaction(storeName, mode).objectStore(storeName);
 }
 
+function resetMemoryStores() {
+  Object.values(memoryStores).forEach((records) => records.splice(0, records.length));
+}
+
+function cloneRecord(record) {
+  return record ? JSON.parse(JSON.stringify(record)) : record;
+}
+
+function nextMemoryId(storeName) {
+  return memoryStores[storeName].reduce((maximum, record) => Math.max(maximum, Number(record.id) || 0), 0) + 1;
+}
+
 function requestToPromise(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -487,19 +556,34 @@ function requestToPromise(request) {
 }
 
 async function getAll(storeName) {
+  if (state.storage.temporary) return memoryStores[storeName].map(cloneRecord);
   return requestToPromise(tx(storeName).getAll());
 }
 
 async function addRecord(storeName, record) {
+  if (state.storage.temporary) {
+    const id = nextMemoryId(storeName);
+    memoryStores[storeName].push(cloneRecord({ ...record, id }));
+    return id;
+  }
   return requestToPromise(tx(storeName, "readwrite").add(record));
 }
 
 async function putRecord(storeName, record) {
+  if (state.storage.temporary) {
+    const index = memoryStores[storeName].findIndex((storedRecord) => storedRecord.id === record.id);
+    if (index >= 0) memoryStores[storeName][index] = cloneRecord(record);
+    else memoryStores[storeName].push(cloneRecord(record));
+    return record.id;
+  }
   return requestToPromise(tx(storeName, "readwrite").put(record));
 }
 
 async function getRecord(storeName, id) {
   const localKey = Number.isNaN(Number(id)) ? id : Number(id);
+  if (state.storage.temporary) {
+    return cloneRecord(memoryStores[storeName].find((record) => record.id === localKey));
+  }
   return requestToPromise(tx(storeName).get(localKey));
 }
 
@@ -631,15 +715,61 @@ async function renderRoute() {
   else if (route === "safety") renderSafetyPage();
   else renderWelcomePage();
 
+  app.removeAttribute("aria-busy");
+  renderTemporaryModeNotice();
   focusPrimaryHeading();
 }
 
 function renderRouteSafely() {
   renderRoute().catch((error) => {
-    console.error(error);
-    if (getRoute() === "welcome") handleStartupError(error);
-    else navigate("welcome");
+    logTechnicalError("navegación", error);
+    renderRecoverableError();
   });
+}
+
+function renderTemporaryModeNotice() {
+  if (!state.storage.temporary) return;
+  app.classList.add("has-temporary-notice");
+  app.insertAdjacentHTML(
+    "afterbegin",
+    `<div class="temporary-notice" role="status">
+      <strong>Modo temporal</strong>
+      <span>La práctica funciona, pero no quedará en tu historial.</span>
+      <button type="button" data-retry-storage>Reintentar guardado</button>
+    </div>`,
+  );
+  document.querySelector("[data-retry-storage]")?.addEventListener("click", retryPersistentStorage);
+}
+
+function retryPersistentStorage() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("storage");
+  window.location.href = url.toString();
+}
+
+function renderRecoverableError() {
+  stopSessionTimers();
+  stopPostureTimers();
+  app.removeAttribute("aria-busy");
+  app.className = "app-shell";
+  app.innerHTML = `
+    <section class="screen panel">
+      <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
+      <h2>Algo no cargó como esperábamos</h2>
+      <p class="lead">Tu práctica no se marcó como completa. Podés reintentar esta pantalla o volver al inicio.</p>
+      <div class="actions">
+        <button class="button" type="button" data-retry-screen>Reintentar</button>
+        <button class="button button-secondary" type="button" data-route="welcome">Volver al inicio</button>
+      </div>
+    </section>
+  `;
+  document.querySelector("[data-retry-screen]")?.addEventListener("click", renderRouteSafely);
+  bindRoutes();
+}
+
+function logTechnicalError(context, error) {
+  const message = error instanceof Error ? error.message : "Error sin detalle";
+  console.error(`[Respiración Yogui] ${context}: ${message}`);
 }
 
 function renderWelcomePage() {
@@ -843,6 +973,7 @@ async function renderSessionPage(sessionId) {
           <span>${patternLabel(routine)}</span>
           <span class="audio-status" data-audio-status>${audioStatusLabel()}</span>
         </div>
+        <p class="media-notice" data-media-notice role="status" ${state.audio.issue ? "" : "hidden"}>${state.audio.issue}</p>
         <div class="actions" style="justify-content: center;">
           <button class="button button-soft" type="button" data-pause>Pausar</button>
           <button class="button button-secondary" type="button" data-audio-toggle aria-pressed="${String(isAudioEnabled())}">
@@ -971,6 +1102,7 @@ async function renderPosturePage(sessionId) {
           <span data-posture-next>Después: ${postureRoutine.poses[1]?.name || "Cierre"}</span>
         </div>
         <div class="practice-progress" aria-hidden="true"><span data-posture-progress></span></div>
+        <p class="media-notice" data-media-notice role="status" ${state.audio.issue ? "" : "hidden"}>${state.audio.issue}</p>
         <div class="actions" style="justify-content: center;">
           <button class="button button-soft" type="button" data-posture-pause>Pausar</button>
           <button class="button button-secondary" type="button" data-posture-repeat>Repetir indicación</button>
@@ -1296,6 +1428,7 @@ function renderInsights(insights) {
 
 function startBreathingSession(routine, sessionId) {
   stopSessionTimers();
+  clearMediaIssue();
   const durationSeconds = breathingDurationSeconds(routine);
 
   state.session = {
@@ -1516,6 +1649,7 @@ function stopSessionTimers(options = {}) {
 
 function startPostureSession(routine, sessionId) {
   stopPostureTimers();
+  clearMediaIssue();
   state.posture = {
     running: true,
     paused: false,
@@ -1765,6 +1899,25 @@ function syncAudioUi() {
   if (status) status.textContent = audioStatusLabel();
 }
 
+function showMediaIssue(message) {
+  state.audio.issue = message;
+  const notice = document.querySelector("[data-media-notice]");
+  if (notice) {
+    notice.textContent = message;
+    notice.hidden = false;
+  }
+  announce(message);
+}
+
+function clearMediaIssue() {
+  state.audio.issue = "";
+  const notice = document.querySelector("[data-media-notice]");
+  if (notice) {
+    notice.textContent = "";
+    notice.hidden = true;
+  }
+}
+
 async function toggleAudio() {
   if (isAudioEnabled() && !state.audio.unlocked) {
     await unlockAudio();
@@ -1846,7 +1999,8 @@ async function startRoutineAudio(routine) {
     master.connect(context.destination);
   }
 
-  if (theme.file && (await audioAssetExists(theme.file))) {
+  const trackAvailable = theme.file ? await audioAssetExists(theme.file) : false;
+  if (theme.file && trackAvailable) {
     const audioElement = new Audio(theme.file);
     audioElement.loop = true;
     audioElement.preload = "auto";
@@ -1863,7 +2017,10 @@ async function startRoutineAudio(routine) {
       fadeMediaElementTo(TRACK_VOLUME, 2.2);
     } catch (error) {
       hasTrack = false;
+      showMediaIssue("No se pudo iniciar la música. La guía visual y la voz continúan.");
     }
+  } else if (theme.file) {
+    showMediaIssue("La música no está disponible. La guía visual y la voz continúan.");
   }
 
   if (master && (theme.rain || !hasTrack)) {
@@ -1881,7 +2038,10 @@ function startGuideAudio(type, mood) {
   if (!state.audio.guideEnabled) return false;
 
   const file = GUIDE_AUDIO[type]?.[mood];
-  if (!file) return false;
+  if (!file) {
+    showMediaIssue("La guía de voz no está disponible. Podés continuar con las indicaciones visuales y la música.");
+    return false;
+  }
 
   const guideKey = `${type}:${mood}`;
   if (state.audio.guideKey === guideKey && state.audio.guideElement && !state.audio.guideElement.ended) {
@@ -1898,6 +2058,15 @@ function startGuideAudio(type, mood) {
   guideElement.playsInline = true;
   state.audio.guideElement = guideElement;
   state.audio.guideKey = guideKey;
+  guideElement.addEventListener(
+    "error",
+    () => {
+      if (state.audio.guideElement !== guideElement) return;
+      showMediaIssue("La guía de voz no pudo cargarse. Podés continuar con las indicaciones visuales y la música.");
+      stopGuideAudio();
+    },
+    { once: true },
+  );
 
   guideElement
     .play()
@@ -1905,6 +2074,7 @@ function startGuideAudio(type, mood) {
       syncAudioUi();
     })
     .catch(() => {
+      showMediaIssue("La guía de voz no pudo iniciarse. Podés continuar con las indicaciones visuales y la música.");
       stopGuideAudio();
     });
   try {

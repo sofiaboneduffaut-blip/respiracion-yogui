@@ -11,11 +11,18 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=13" />
+    <link rel="stylesheet" href="styles.css?v=14" />
   </head>
   <body>
-    <main id="app" class="app-shell"></main>
+    <main id="app" class="app-shell" aria-busy="true">
+      <section class="screen panel loading-panel" role="status">
+        <div class="brand"><span class="brand-mark"></span><span>Respiración Yogui</span></div>
+        <span class="loading-indicator" aria-hidden="true"></span>
+        <h2>Preparando tu pausa</h2>
+        <p>Estamos cargando las rutinas guardadas en este dispositivo.</p>
+      </section>
+    </main>
     <div id="app-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-    <script src="app.js?v=44"></script>
+    <script src="app.js?v=45"></script>
   </body>
 </html>
