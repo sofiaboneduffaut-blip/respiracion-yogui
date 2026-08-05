@@ -1,9 +1,9 @@
 const DB_NAME = "respiracion-yogui";
 const DB_VERSION = 1;
-const TRACK_VOLUME = 0.34;
-const POSTURE_MUSIC_VOLUME = 0.18;
-const RAIN_VOLUME = 0.08;
-const GUIDE_VOLUME = 0.38;
+const TRACK_VOLUME = 0.14;
+const POSTURE_MUSIC_VOLUME = 0.08;
+const RAIN_VOLUME = 0.07;
+const GUIDE_VOLUME = 0.9;
 const BREATHING_DURATION_SECONDS = 5 * 60;
 const POSTURE_DURATION_SECONDS = 5 * 60;
 const BREATHING_PRIMER_SECONDS = 12;
@@ -395,8 +395,7 @@ const state = {
     pausedAt: null,
     pausedTotalMs: 0,
     currentPoseIndex: 0,
-    manualPoseIndex: null,
-    manualPoseUntil: 0,
+    seekDragging: false,
   },
   audio: {
     context: null,
@@ -785,7 +784,7 @@ function renderWelcomePage() {
       </p>
       <p class="welcome-benefit">
         En 5 o 10 minutos podés interrumpir un período largo sentado y sumar movimiento suave a tu día.
-        <a href="https://www.who.int/news-room/fact-sheets/detail/physical-activity" target="_blank" rel="noreferrer">Basado en recomendaciones de la OMS</a>.
+        <a href="https://www.who.int/es/news-room/fact-sheets/detail/physical-activity" target="_blank" rel="noreferrer">Basado en recomendaciones de la OMS</a>.
       </p>
       <div class="actions welcome-actions">
         <button class="button" type="button" data-route="modalities">Elegir mi pausa</button>
@@ -855,6 +854,7 @@ function renderMoodPage() {
     </section>
   `;
 
+  bindRoutes();
   document.querySelectorAll("[data-mood]").forEach((button) => {
     button.addEventListener("click", async () => {
       state.mood = button.dataset.mood;
@@ -977,9 +977,6 @@ async function renderSessionPage(sessionId) {
         <p class="media-notice" data-media-notice role="status" ${state.audio.issue ? "" : "hidden"}>${state.audio.issue}</p>
         <div class="actions" style="justify-content: center;">
           <button class="button button-soft" type="button" data-pause>Pausar</button>
-          <button class="button button-secondary" type="button" data-audio-toggle aria-pressed="${String(isAudioEnabled())}">
-            ${audioButtonLabel()}
-          </button>
           ${modality.id === "complete" ? `<button class="button button-secondary" type="button" data-skip-movement>Saltar a movimiento</button>` : ""}
           <button class="button button-danger" type="button" data-finish>Terminar pausa</button>
         </div>
@@ -990,7 +987,6 @@ async function renderSessionPage(sessionId) {
 
   startBreathingSession(routine, session.id);
   document.querySelector("[data-pause]").addEventListener("click", togglePause);
-  document.querySelector("[data-audio-toggle]").addEventListener("click", toggleAudio);
   document.querySelector("[data-skip-movement]")?.addEventListener("click", () => {
     openConfirmationDialog({
       title: "¿Pasar a movimiento?",
@@ -1102,12 +1098,23 @@ async function renderPosturePage(sessionId) {
           <span class="audio-status" data-posture-step>Postura 1 de ${postureRoutine.poses.length}</span>
           <span data-posture-next>Después: ${postureRoutine.poses[1]?.name || "Cierre"}</span>
         </div>
-        <div class="practice-progress" aria-hidden="true"><span data-posture-progress></span></div>
+        <div class="posture-audio-control">
+          <label for="posture-audio-seek">Avance del audio</label>
+          <input
+            id="posture-audio-seek"
+            type="range"
+            min="0"
+            max="${POSTURE_DURATION_SECONDS}"
+            step="1"
+            value="0"
+            data-posture-seek
+            aria-describedby="posture-seek-time"
+          />
+          <output id="posture-seek-time" data-posture-seek-time>00:00 / 05:00</output>
+        </div>
         <p class="media-notice" data-media-notice role="status" ${state.audio.issue ? "" : "hidden"}>${state.audio.issue}</p>
         <div class="actions" style="justify-content: center;">
           <button class="button button-soft" type="button" data-posture-pause>Pausar</button>
-          <button class="button button-secondary" type="button" data-posture-repeat>Repetir indicación</button>
-          <button class="button button-secondary" type="button" data-posture-next-button>Siguiente postura</button>
           <button class="button button-danger" type="button" data-posture-finish>Terminar pausa</button>
         </div>
       </div>
@@ -1118,8 +1125,22 @@ async function renderPosturePage(sessionId) {
   bindPostureImageFallback();
   startPostureSession(postureRoutine, session.id);
   document.querySelector("[data-posture-pause]").addEventListener("click", togglePosturePause);
-  document.querySelector("[data-posture-repeat]").addEventListener("click", () => repeatCurrentPosture(postureRoutine));
-  document.querySelector("[data-posture-next-button]").addEventListener("click", () => goToNextPosture(postureRoutine));
+  const postureSeek = document.querySelector("[data-posture-seek]");
+  postureSeek.addEventListener("pointerdown", () => {
+    state.posture.seekDragging = true;
+  });
+  postureSeek.addEventListener("pointerup", () => {
+    state.posture.seekDragging = false;
+  });
+  postureSeek.addEventListener("pointercancel", () => {
+    state.posture.seekDragging = false;
+  });
+  postureSeek.addEventListener("change", () => {
+    state.posture.seekDragging = false;
+  });
+  postureSeek.addEventListener("input", (event) => {
+    seekPostureSession(Number(event.currentTarget.value), postureRoutine, session.id);
+  });
   document.querySelector("[data-posture-finish]").addEventListener("click", () => {
     openConfirmationDialog({
       title: "¿Terminar esta pausa?",
@@ -1598,7 +1619,7 @@ function prepareSessionEnding() {
   state.session.endingWarned = true;
   const instruction = document.querySelector("[data-instruction]");
   if (instruction) instruction.textContent = "Cerrando";
-  fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.12), 5);
+  fadeRoutineAudioTo(Math.max(TRACK_VOLUME * 0.42, 0.035), 5);
 }
 
 async function finishSession(sessionId, breathingCompleted, options = {}) {
@@ -1661,8 +1682,7 @@ function startPostureSession(routine, sessionId) {
     pausedAt: null,
     pausedTotalMs: 0,
     currentPoseIndex: 0,
-    manualPoseIndex: null,
-    manualPoseUntil: 0,
+    seekDragging: false,
     endingWarned: false,
     finishing: false,
   };
@@ -1711,19 +1731,7 @@ function updatePostureProgress(routine, sessionId) {
       routine.poses.length - 1,
       Math.floor((POSTURE_DURATION_SECONDS - state.posture.remainingSeconds) / poseDuration),
     );
-    const now = performance.now();
-    if (state.posture.manualPoseIndex !== null) {
-      const repeatActive = state.posture.manualPoseUntil > now;
-      const waitingForSchedule = !state.posture.manualPoseUntil && scheduledIndex <= state.posture.manualPoseIndex;
-      if (repeatActive || waitingForSchedule) state.posture.currentPoseIndex = state.posture.manualPoseIndex;
-      else {
-        state.posture.manualPoseIndex = null;
-        state.posture.manualPoseUntil = 0;
-        state.posture.currentPoseIndex = scheduledIndex;
-      }
-    } else {
-      state.posture.currentPoseIndex = scheduledIndex;
-    }
+    state.posture.currentPoseIndex = scheduledIndex;
     renderPosturePose(routine);
   }
 
@@ -1741,10 +1749,10 @@ function renderPosturePose(routine) {
   const alternative = document.querySelector("[data-posture-alternative]");
   const step = document.querySelector("[data-posture-step]");
   const next = document.querySelector("[data-posture-next]");
-  const progress = document.querySelector("[data-posture-progress]");
+  const seek = document.querySelector("[data-posture-seek]");
+  const seekTime = document.querySelector("[data-posture-seek-time]");
   const image = document.querySelector("[data-posture-image]");
   const fallback = document.querySelector("[data-posture-image-fallback]");
-  const nextButton = document.querySelector("[data-posture-next-button]");
 
   if (name) name.textContent = pose.name;
   if (cue) cue.textContent = pose.cue;
@@ -1752,8 +1760,9 @@ function renderPosturePose(routine) {
   if (alternative) alternative.textContent = guide.alternative;
   if (step) step.textContent = `Postura ${state.posture.currentPoseIndex + 1} de ${routine.poses.length}`;
   if (next) next.textContent = `Después: ${routine.poses[state.posture.currentPoseIndex + 1]?.name || "Cierre"}`;
-  if (progress) progress.style.width = `${Math.min(100, (postureElapsedMilliseconds() / state.posture.durationMs) * 100)}%`;
-  if (nextButton) nextButton.disabled = state.posture.currentPoseIndex >= routine.poses.length - 1;
+  const elapsedSeconds = Math.min(POSTURE_DURATION_SECONDS, Math.floor(postureElapsedMilliseconds() / 1000));
+  if (seek && !state.posture.seekDragging) seek.value = String(elapsedSeconds);
+  if (seekTime) seekTime.textContent = `${formatTime(elapsedSeconds)} / ${formatTime(POSTURE_DURATION_SECONDS)}`;
 
   if (image && image.dataset.poseId !== pose.id) {
     image.dataset.poseId = pose.id;
@@ -1772,7 +1781,8 @@ function preparePostureEnding() {
   const alternative = document.querySelector("[data-posture-alternative]");
   const step = document.querySelector("[data-posture-step]");
   const next = document.querySelector("[data-posture-next]");
-  const progress = document.querySelector("[data-posture-progress]");
+  const seek = document.querySelector("[data-posture-seek]");
+  const seekTime = document.querySelector("[data-posture-seek-time]");
 
   if (name) name.textContent = "Cierre";
   if (cue) cue.textContent = "La rutina de posturas está por terminar.";
@@ -1780,8 +1790,9 @@ function preparePostureEnding() {
   if (alternative) alternative.textContent = "Respirá con naturalidad, sin forzar ninguna posición.";
   if (step) step.textContent = "Cerrando";
   if (next) next.textContent = "Últimos segundos";
-  if (progress) progress.style.width = "100%";
-  fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.06), 5);
+  if (seek) seek.value = String(POSTURE_DURATION_SECONDS);
+  if (seekTime) seekTime.textContent = `${formatTime(POSTURE_DURATION_SECONDS)} / ${formatTime(POSTURE_DURATION_SECONDS)}`;
+  fadeRoutineAudioTo(Math.max(POSTURE_MUSIC_VOLUME * 0.35, 0.02), 5);
 }
 
 function renderPostureTimer() {
@@ -1803,24 +1814,30 @@ function togglePosturePause() {
   pauseGuideAudio(state.posture.paused);
 }
 
-function repeatCurrentPosture(routine) {
-  if (state.posture.paused || state.posture.finishing) return;
-  state.posture.manualPoseIndex = state.posture.currentPoseIndex;
-  state.posture.manualPoseUntil = performance.now() + 15000;
-  renderPosturePose(routine);
-  const pose = routine.poses[state.posture.currentPoseIndex];
-  announce(`Repetimos la indicación de ${pose.name}. ${pose.cue}`);
-}
+function seekPostureSession(targetSeconds, routine, sessionId) {
+  if (!state.posture.running || state.posture.finishing || !Number.isFinite(targetSeconds)) return;
 
-function goToNextPosture(routine) {
-  if (state.posture.paused || state.posture.finishing) return;
-  const nextIndex = Math.min(routine.poses.length - 1, state.posture.currentPoseIndex + 1);
-  if (nextIndex === state.posture.currentPoseIndex) return;
-  state.posture.manualPoseIndex = nextIndex;
-  state.posture.manualPoseUntil = 0;
-  state.posture.currentPoseIndex = nextIndex;
-  renderPosturePose(routine);
-  announce(`Siguiente postura: ${routine.poses[nextIndex].name}`);
+  const clampedSeconds = Math.max(0, Math.min(POSTURE_DURATION_SECONDS, targetSeconds));
+  const now = performance.now();
+  const pausedMs = state.posture.pausedAt ? now - state.posture.pausedAt : 0;
+  state.posture.startedAt = now - clampedSeconds * 1000 - state.posture.pausedTotalMs - pausedMs;
+  state.posture.remainingSeconds = Math.max(0, Math.ceil(POSTURE_DURATION_SECONDS - clampedSeconds));
+  state.posture.endingWarned = clampedSeconds >= POSTURE_DURATION_SECONDS - 15;
+
+  const guide = state.audio.guideElement;
+  if (guide) {
+    try {
+      const guideLimit = Number.isFinite(guide.duration) ? guide.duration : clampedSeconds;
+      guide.currentTime = Math.min(clampedSeconds, guideLimit);
+    } catch (error) {
+      // El temporizador igual se actualiza si el navegador todavía está cargando el audio.
+    }
+  }
+
+  if (state.posture.endingWarned) preparePostureEnding();
+  else updatePostureProgress(routine, sessionId);
+
+  if (clampedSeconds >= POSTURE_DURATION_SECONDS) finishPostureSession(sessionId);
 }
 
 async function finishPostureSession(sessionId, options = { completed: true }) {
@@ -1880,23 +1897,13 @@ function isAudioEnabled() {
   return state.audio.guideEnabled || state.audio.musicEnabled;
 }
 
-function audioButtonLabel() {
-  if (!state.audio.unlocked && isAudioEnabled()) return "Activar audio";
-  return isAudioEnabled() ? "Silenciar" : "Activar audio";
-}
-
 function audioStatusLabel() {
   if (!isAudioEnabled()) return "Audio apagado";
   return state.audio.unlocked ? "Voz y música activas" : "Audio pendiente";
 }
 
 function syncAudioUi() {
-  const button = document.querySelector("[data-audio-toggle]");
   const status = document.querySelector("[data-audio-status]");
-  if (button) {
-    button.textContent = audioButtonLabel();
-    button.setAttribute("aria-pressed", String(isAudioEnabled()));
-  }
   if (status) status.textContent = audioStatusLabel();
 }
 
@@ -1917,34 +1924,6 @@ function clearMediaIssue() {
     notice.textContent = "";
     notice.hidden = true;
   }
-}
-
-async function toggleAudio() {
-  if (isAudioEnabled() && !state.audio.unlocked) {
-    await unlockAudio();
-    if (state.audio.unlocked && state.session.running && !state.session.paused && state.routine) {
-      startRoutineAudio(state.routine);
-    }
-    syncAudioUi();
-    return;
-  }
-
-  if (!isAudioEnabled()) {
-    state.audio.guideEnabled = true;
-    state.audio.musicEnabled = true;
-    await unlockAudio();
-    if (state.session.running && !state.session.paused && state.routine) {
-      startRoutineAudio(state.routine);
-    }
-    syncAudioUi();
-    return;
-  }
-
-  state.audio.guideEnabled = false;
-  state.audio.musicEnabled = false;
-  stopGuideAudio();
-  stopRoutineAudio();
-  syncAudioUi();
 }
 
 async function unlockAudio() {
