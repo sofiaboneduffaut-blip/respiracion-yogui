@@ -10,7 +10,7 @@ Correspondencia:
 - `arms-up.webp`: Brazos arriba.
 - `twist.webp`: Torsión.
 - `forward-fold.webp`: Flexión hacia adelante.
-- `side-stretch.webp`: Lateral.
+- `side-stretch-v2.webp`: Lateral, con las flechas hacia el lado opuesto al brazo elevado.
 - `heart-opener.webp`: Apertura de pecho.
 - `shoulders.webp`: Hombros.
 

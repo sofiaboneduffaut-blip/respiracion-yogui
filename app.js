@@ -321,8 +321,8 @@ const POSTURE_GUIDES = {
   "side-stretch": {
     movement: "Paso a paso: brazo derecho arriba e inclinación izquierda; después brazo izquierdo y derecha.",
     alternative: "Menor amplitud: dejá la mano en la cintura e inclinate solo un poco hacia cada lado.",
-    image: "assets/postures/side-stretch.webp",
-    alt: "Secuencia sentada de inclinación lateral hacia ambos lados con un brazo elevado.",
+    image: "assets/postures/side-stretch-v2.webp",
+    alt: "Secuencia sentada: brazo derecho arriba e inclinación a la izquierda; luego brazo izquierdo arriba e inclinación a la derecha.",
   },
   "heart-opener": {
     movement: "Paso a paso: tomá la silla, abrí el pecho al inhalar y aflojá al exhalar.",
