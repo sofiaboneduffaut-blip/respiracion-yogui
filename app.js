@@ -744,6 +744,7 @@ function renderTemporaryModeNotice() {
 function retryPersistentStorage() {
   const url = new URL(window.location.href);
   url.searchParams.delete("storage");
+  url.hash = "welcome";
   window.location.href = url.toString();
 }
 
